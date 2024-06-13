@@ -31,7 +31,9 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+/**
+ * Sauber!
+ */
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
