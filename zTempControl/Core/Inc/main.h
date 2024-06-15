@@ -31,7 +31,7 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "max31865.h"
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
@@ -59,6 +59,10 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define LED_Pin GPIO_PIN_13
 #define LED_GPIO_Port GPIOC
+#define PT100INNEN_CS_Pin GPIO_PIN_4
+#define PT100INNEN_CS_GPIO_Port GPIOA
+#define PT100AUSSEN_CS_Pin GPIO_PIN_2
+#define PT100AUSSEN_CS_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 
