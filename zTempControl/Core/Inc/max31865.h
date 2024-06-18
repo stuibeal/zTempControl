@@ -35,8 +35,8 @@ typedef struct
 }Max31865_t;
 //#########################################################################################################################
 void  Max31865_init(Max31865_t *max31865,SPI_HandleTypeDef *spi,GPIO_TypeDef  *cs_gpio,uint16_t cs_pin,uint8_t  numwires, uint8_t filterHz);
-bool  Max31865_readTempC(Max31865_t *max31865,float *readTemp);
-bool  Max31865_readTempF(Max31865_t *max31865,float *readTemp);
+uint8_t  Max31865_readTempC(Max31865_t *max31865,float *readTemp);
+uint8_t  Max31865_readTempF(Max31865_t *max31865,float *readTemp);
 float Max31865_Filter(float	newInput, float	lastOutput, float efectiveFactor);
 //#########################################################################################################################
 #ifdef __cplusplus

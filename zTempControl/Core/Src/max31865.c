@@ -178,12 +178,12 @@ void  Max31865_init(Max31865_t *max31865,SPI_HandleTypeDef *spi,GPIO_TypeDef  *c
   Max31865_setFilter(max31865, filterHz);  
 }
 //#########################################################################################################################
-bool Max31865_readTempC(Max31865_t *max31865,float *readTemp)
+uint8_t Max31865_readTempC(Max31865_t *max31865,float *readTemp)
 {
   if(max31865->lock == 1)
     Max31865_delay(1);
   max31865->lock = 1;
-  bool isOk = false;
+  uint8_t isOk = false;
   float Z1, Z2, Z3, Z4, Rt, temp;
 	Rt = Max31865_readRTD(max31865);
 	Rt /= 32768;
@@ -224,9 +224,9 @@ bool Max31865_readTempC(Max31865_t *max31865,float *readTemp)
   return isOk;  
 }
 //#########################################################################################################################
-bool  Max31865_readTempF(Max31865_t *max31865,float *readTemp)
+uint8_t  Max31865_readTempF(Max31865_t *max31865,float *readTemp)
 {  
-  bool isOk = Max31865_readTempC(max31865,readTemp);
+  uint8_t isOk = Max31865_readTempC(max31865,readTemp);
   *readTemp = (*readTemp * 9.0f / 5.0f) + 32.0f;
   return isOk;
 }

@@ -1,30 +1,34 @@
 /* USER CODE BEGIN Header */
 /**
-  ******************************************************************************
-  * @file           : main.c
-  * @brief          : Main program body
-  ******************************************************************************
-  * @attention
-  *
-  * Copyright (c) 2024 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  */
+ ******************************************************************************
+ * @file           : main.c
+ * @brief          : Main program body
+ ******************************************************************************
+ * @attention
+ *
+ * Copyright (c) 2024 STMicroelectronics.
+ * All rights reserved.
+ *
+ * This software is licensed under terms that can be found in the LICENSE file
+ * in the root directory of this software component.
+ * If no LICENSE file comes with this software, it is provided AS-IS.
+ *
+ ******************************************************************************
+ */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "cmsis_os.h"
+#include "dma.h"
+#include "i2c.h"
 #include "spi.h"
+#include "usart.h"
 #include "usb_device.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "Modbus.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -45,20 +49,23 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
+__IO uint32_t flowCounter = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 void MX_FREERTOS_Init(void);
 /* USER CODE BEGIN PFP */
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin);
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
-
+modbusHandler_t ModbusH1;
+uint16_t ModbusDATA1[16];
+modbusHandler_t ModbusH2;
+uint16_t ModbusDATA2[16];
 /* USER CODE END 0 */
 
 /**
@@ -90,8 +97,44 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_SPI1_Init();
+  MX_I2C1_Init();
+  MX_USART2_UART_Init();
+  MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
+
+	/* MODBUS RTU Master 1 initialization */
+	ModbusH1.uModbusType = MB_MASTER;
+	ModbusH1.port = &huart1;
+	ModbusH1.u8id = 0; // For master it must be 0
+	ModbusH1.u16timeOut = 1000;
+	ModbusH1.EN_Port = NULL;
+	ModbusH1.EN_Port = NULL;
+	ModbusH1.EN_Pin = 0;
+	ModbusH1.u16regs = ModbusDATA1;
+	ModbusH1.u16regsize = sizeof(ModbusDATA1) / sizeof(ModbusDATA1[0]);
+	ModbusH1.xTypeHW = USART_HW;
+	//Initialize Modbus library
+	ModbusInit(&ModbusH1);
+	//Start capturing traffic on serial Port
+	ModbusStart(&ModbusH1);
+
+	/* MODBUS RTU Master 2 initialization */
+	ModbusH2.uModbusType = MB_MASTER;
+	ModbusH2.port = &huart2;
+	ModbusH2.u8id = 0; // For master it must be 0
+	ModbusH2.u16timeOut = 1000;
+	ModbusH2.EN_Port = NULL;
+	ModbusH2.EN_Port = NULL;
+	ModbusH2.EN_Pin = 0;
+	ModbusH2.u16regs = ModbusDATA2;
+	ModbusH2.u16regsize = sizeof(ModbusDATA2) / sizeof(ModbusDATA2[0]);
+	ModbusH2.xTypeHW = USART_HW;
+	//Initialize Modbus library
+	ModbusInit(&ModbusH2);
+	//Start capturing traffic on serial Port
+	ModbusStart(&ModbusH2);
 
   /* USER CODE END 2 */
 
@@ -108,12 +151,11 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  while (1)
-  {
+	while (1) {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-  }
+	}
   /* USER CODE END 3 */
 }
 
@@ -164,6 +206,16 @@ void SystemClock_Config(void)
 
 /* USER CODE BEGIN 4 */
 
+/**
+ * @brief	Interruptroutine, zählt eins hoch wenn der Flowsensor flowt.
+ */
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
+	if (GPIO_Pin == FLOWSENSOR_Pin) {
+		flowCounter++;
+		HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
+	}
+}
+
 /* USER CODE END 4 */
 
 /**
@@ -194,11 +246,10 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
-  /* User can add his own implementation to report the HAL error return state */
-  __disable_irq();
-  while (1)
-  {
-  }
+	/* User can add his own implementation to report the HAL error return state */
+	__disable_irq();
+	while (1) {
+	}
   /* USER CODE END Error_Handler_Debug */
 }
 
