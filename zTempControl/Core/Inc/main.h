@@ -31,16 +31,11 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "max31865.h"
-#include "Modbus.h"
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
-extern modbusHandler_t ModbusH1;
-extern modbusHandler_t ModbusH2;
-extern uint16_t ModbusDATA1[16];
-extern uint16_t ModbusDATA2[16];
+
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/

@@ -32,6 +32,8 @@
 #include "usb_device.h"
 #include <stdio.h>
 #include "semphr.h"
+#include "Modbus.h"
+#include "common.h"
 
 /* USER CODE END Includes */
 
@@ -197,10 +199,10 @@ void checkTempStart(void *argument) {
 		 }
 		 */
 		sprintf(buffer, "Innen: %d C Aussen: %d zahl %d inV %d %d \n\r",
-				(int16_t) (t * 100), (int16_t) (pt100AussenTemp * 100),
-				zaehler, ModbusDATA2[0],ModbusDATA2[1]);
+				(int16_t) (t * 100), (int16_t) (pt100AussenTemp * 100), zaehler,
+				ModbusDATA2[0], ModbusDATA2[1]);
 		CDC_Transmit_FS((uint8_t*) buffer, strlen(buffer));
-
+        dataTxRegister[0] = (uint16_t) (pt100AussenTemp * 100);
 		osDelay(100);
 	}
 	/* USER CODE END checkTempStart */
@@ -215,11 +217,8 @@ void checkTempStart(void *argument) {
 /* USER CODE END Header_startDpsTalk */
 void startDpsTalk(void *argument) {
 	/* USER CODE BEGIN startDpsTalk */
-	/* Infinite loop */
-
 	modbus_t telegram;
 	uint32_t u32NotificationValue;
-
 
 	telegram.u8id = 1; // slave address
 	telegram.u8fct = MB_FC_READ_REGISTERS; // function code
@@ -227,7 +226,7 @@ void startDpsTalk(void *argument) {
 	telegram.u16RegAdd = 0x05; // start address in slave
 	telegram.u16CoilsNo = 2; // number of elements (coils or registers) to read
 	telegram.u16reg = ModbusDATA2; // pointer to a memory array in the Arduino
-
+	/* Infinite loop */
 	for (;;) {
 
 		ModbusQuery(&ModbusH2, telegram); // make a query
@@ -239,12 +238,13 @@ void startDpsTalk(void *argument) {
 		//inputVoltage = ModbusDATA2[0];
 		HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
 		osDelay(1000);
-
-	} /* USER CODE END startDpsTalk */
+	}
+	/* USER CODE END startDpsTalk */
 }
 
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
+
 
 /* USER CODE END Application */
 
