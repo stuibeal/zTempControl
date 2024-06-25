@@ -20,6 +20,18 @@ extern uint16_t ModbusDATA2[16];
 extern uint16_t dataRxRegister[4];
 extern uint16_t dataTxRegister[6];
 
+// PID Steuerung
+extern float pt100AussenTemp;
+extern float pt100InnenTemp;
+extern float kP;
+extern float kI;
+extern float kD;
+extern float setPointInnen;
+extern float setPointAussen;
+extern float errorInnen;
+extern float errorAussen;
+
+
 
 
 #endif /* INC_COMMON_H_ */
