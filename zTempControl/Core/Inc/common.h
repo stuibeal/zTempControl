@@ -17,8 +17,8 @@ extern modbusHandler_t ModbusH2;
 extern uint16_t ModbusDATA2[16];
 
 //I2C und Register
-extern uint16_t dataRxRegister[4];
-extern uint16_t dataTxRegister[6];
+extern int16_t dataRxRegister[4];  //Werte können auch negativ sein -> int16_t
+extern int16_t dataTxRegister[6];
 
 // PID Steuerung
 extern float pt100AussenTemp;

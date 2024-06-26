@@ -92,10 +92,10 @@
  *  Der Temperaturregler schickt _immer_ folgendes zurück
  *  - 2 Bytes: Temperatur Block Aussen
  *  - 2 Bytes: Temperatur Block Innen
- *  - 2 Bytes: Eingangsspannung, geglättet
+ *  - 2 Bytes: 1 Byte Batteriestatus (0x01 high, 0x02 normal, 0x03 low, 0x04 ultralow), 1 Byte InVoltage *10
  *  - 2 Bytes: Aktueller Stromverbrauch in W
- *  - 2 Bytes: Flowrate Kühlwasser
  *  - 2 Bytes: Stromverbrauch in Wh letzte Zapfung (zwischen 2 Zapfende)
+ *  - 2 Bytes: Flowrate Kühlwasser
  *
  *  Also:
  *  Master schickt Befehl 0x01, gefolgt von 2 Bytes Einlauf und 2 Bytes Kühlkreislauf
@@ -110,11 +110,11 @@
  *
  *  to write in an array: memcpy(buffer, &value, sizeof(uint16_t)).
  *******************************************************************************/
-#define JUST_NORMAL_COMMUNICATE 0x01
+#define JUST_COMMUNICATE 0x01
 #define TEMP_RX_BYTES 8
 #define TEMP_TX_BYTES 12
-#define __GET_TEMP_EINLAUF aRxBuffer[1]
-#define __GET_TEMP_KUEHLKREISLAUF aRxBuffer[2]
+#define TEMP_EINLAUF aRxBuffer[1]
+#define TEMP_KUEHLKREISLAUF aRxBuffer[2]
 #define __SEND_TEMP_BLOCK_AUSSEN aTxBuffer[0]
 #define __SEND_TEMP_BLOCK_INNEN aTxBuffer[1]
 #define __SEND_BATTERY_VOLTAGE aTxBuffer[2]
