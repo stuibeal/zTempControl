@@ -64,9 +64,7 @@ uint8_t pt100AussenIsOK;
 float pt100AussenTemp;
 // MODBUS
 modbus_t telegram[2];
-uint8_t zaehler = 0;
 // DPS5020
-uint16_t inputVoltage[2];
 
 char buffer[128];
 /* USER CODE END Variables */
@@ -160,9 +158,9 @@ void StartDefaultTask(void *argument) {
 	/* USER CODE BEGIN StartDefaultTask */
 	/* Infinite loop */
 	for (;;) {
-		//HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
-		osDelay(500);
-
+		//Hier nur ein Lebenszeichen von sich geben
+		HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
+		osDelay(1000);
 	}
 	/* USER CODE END StartDefaultTask */
 }
@@ -179,31 +177,16 @@ void checkTempStart(void *argument) {
 	/* Infinite loop */
 	for (;;) {
 		float t;
-		//uint8_t zaehler;
-		//pt100InnenIsOK = Max31865_readTempC(&pt100Innen,&t);
-		//pt100InnenTemp = Max31865_Filter(t,pt100InnenTemp,0.08);   //  << For Smoothing data
-		//osDelay(10);
+		pt100InnenIsOK = Max31865_readTempC(&pt100Innen, &t);
+		pt100InnenTemp = Max31865_Filter(t, pt100InnenTemp, 0.08); //  << For Smoothing data
+		blockInnenTemp = (int16_t) (pt100InnenTemp * 100);
+
+		osDelay(500);
 		pt100AussenIsOK = Max31865_readTempC(&pt100Aussen, &t);
 		pt100AussenTemp = Max31865_Filter(t, pt100AussenTemp, 0.08); //  << For Smoothing data
-		zaehler++;
-		//osDelay(100);
+		blockAussenTemp = (int16_t) (pt100AussenTemp * 100);
 
-		/**
-		 *
-
-		 if  (t >= 25) {
-		 HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, 1);
-		 }
-		 else {
-		 HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, 0);
-		 }
-		 */
-		sprintf(buffer, "Innen: %d C Aussen: %d zahl %d inV %d %d \n\r",
-				(int16_t) (t * 100), (int16_t) (pt100AussenTemp * 100), zaehler,
-				ModbusDATA2[0], ModbusDATA2[1]);
-		CDC_Transmit_FS((uint8_t*) buffer, strlen(buffer));
-        dataTxRegister[0] = (uint16_t) (pt100AussenTemp * 100);
-		osDelay(100);
+		osDelay(500);
 	}
 	/* USER CODE END checkTempStart */
 }
@@ -219,32 +202,65 @@ void startDpsTalk(void *argument) {
 	/* USER CODE BEGIN startDpsTalk */
 	modbus_t telegram;
 	uint32_t u32NotificationValue;
+	uint16_t eingangsSpannungen[16] = { 1260, 1260, 1260, 1260, 1260, 1260, 1260, 1260,
+			1260, 1260, 1260, 1260, 1260, 1260, 1260, 1260};
+	uint32_t komplettspannung = 0;
+	uint8_t zaehler = 0;
 
 	telegram.u8id = 1; // slave address
 	telegram.u8fct = MB_FC_READ_REGISTERS; // function code
-	//telegram.u16RegAdd = 0x160; // start address in slave
-	telegram.u16RegAdd = 0x05; // start address in slave
+	telegram.u16RegAdd = RD_UIN; // start address in slave
 	telegram.u16CoilsNo = 2; // number of elements (coils or registers) to read
 	telegram.u16reg = ModbusDATA2; // pointer to a memory array in the Arduino
 	/* Infinite loop */
 	for (;;) {
+		//Alle 500ms die Spannung checken, aber nur wenn nicht gezapft wird
+		if (!zapfBool) {
+			ModbusQuery(&ModbusH2, telegram); // make a query
+			u32NotificationValue = ulTaskNotifyTake(pdTRUE, portMAX_DELAY); // block until query finishes
+			if (u32NotificationValue != ERR_OK_QUERY) {
+				//handle error
+				//  while(1);
+			}
+			//zum glätten der Eingangsspannung
 
-		ModbusQuery(&ModbusH2, telegram); // make a query
-		u32NotificationValue = ulTaskNotifyTake(pdTRUE, portMAX_DELAY); // block until query finishes
-		if (u32NotificationValue != ERR_OK_QUERY) {
-			//handle error
-			//  while(1);
+			eingangsSpannungen[zaehler] = ModbusDATA2[0];
+			zaehler++;
+			if (zaehler >15) {
+				zaehler = 0;
+			}
+
+			komplettspannung = 0;
+			for (uint8_t i = 0; i<16; i++) {
+				komplettspannung += eingangsSpannungen[i];
+			}
+			eingangsSpannung = (uint8_t) (komplettspannung / 160);
+
+			//check hier mal den batteriestatus
+			if (eingangsSpannung < 110) {
+				batterieStatus = BATT_ULTRALOW;
+			}
+			if (eingangsSpannung >= 110) {
+				batterieStatus = BATT_LOW;
+			}
+			if (eingangsSpannung > 120) {
+				batterieStatus = BATT_NORMAL;
+			}
+			if (eingangsSpannung > 130) {
+				batterieStatus = BATT_HIGH;
+			}
+			if (eingangsSpannung > 140) {
+				batterieStatus = BATT_ULTRAHIGH;
+			}
+
 		}
-		//inputVoltage = ModbusDATA2[0];
-		HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
-		osDelay(1000);
+		osDelay(5000);
 	}
 	/* USER CODE END startDpsTalk */
 }
 
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
-
 
 /* USER CODE END Application */
 

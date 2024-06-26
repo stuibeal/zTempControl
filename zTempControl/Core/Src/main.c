@@ -32,7 +32,6 @@
 #include "i2c_slave.h"
 #include "common.h"
 #include "max31865.h"
-#include "zCommunication.h"
 
 /* USER CODE END Includes */
 
@@ -60,7 +59,7 @@ modbusHandler_t ModbusH1;
 uint16_t ModbusDATA1[16];
 modbusHandler_t ModbusH2;
 uint16_t ModbusDATA2[16];
-
+uint8_t zapfBool = 0;
 
 /* USER CODE END PV */
 
