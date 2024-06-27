@@ -69,8 +69,8 @@ void Error_Handler(void);
 #define FLOWSENSOR_Pin GPIO_PIN_14
 #define FLOWSENSOR_GPIO_Port GPIOB
 #define FLOWSENSOR_EXTI_IRQn EXTI15_10_IRQn
-#define LUEFTER_Pin GPIO_PIN_15
-#define LUEFTER_GPIO_Port GPIOA
+#define LUEFTERS_Pin GPIO_PIN_15
+#define LUEFTERS_GPIO_Port GPIOA
 
 /* USER CODE BEGIN Private defines */
 

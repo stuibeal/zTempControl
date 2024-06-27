@@ -97,6 +97,7 @@ void HAL_I2C_SlaveRxCpltCallback(I2C_HandleTypeDef *I2cHandle) {
 }
 
 void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *I2cHandle) {
-	HAL_I2C_Slave_Receive_DMA(I2cHandle, i2cRxBuffer, TEMP_RX_BYTES);
+	//HAL_I2C_Slave_Receive_DMA(I2cHandle, i2cRxBuffer, TEMP_RX_BYTES);
+	i2c_slaveStartListen(I2cHandle);
 }
 

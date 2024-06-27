@@ -34,6 +34,7 @@
 #include "semphr.h"
 #include "Modbus.h"
 #include "common.h"
+#include "dpsControl.h"
 
 /* USER CODE END Includes */
 
@@ -63,8 +64,6 @@ Max31865_t pt100Aussen;
 uint8_t pt100AussenIsOK;
 float pt100AussenTemp;
 // MODBUS
-modbus_t telegram[2];
-// DPS5020
 
 char buffer[128];
 /* USER CODE END Variables */
@@ -72,14 +71,26 @@ char buffer[128];
 osThreadId_t defaultTaskHandle;
 const osThreadAttr_t defaultTask_attributes = { .name = "defaultTask",
 		.stack_size = 128 * 4, .priority = (osPriority_t) osPriorityNormal, };
+/* Definitions for checkInVoltage */
+osThreadId_t checkInVoltageHandle;
+const osThreadAttr_t checkInVoltage_attributes = { .name = "checkInVoltage",
+		.stack_size = 128 * 4, .priority = (osPriority_t) osPriorityLow, };
+/* Definitions for pidTask */
+osThreadId_t pidTaskHandle;
+const osThreadAttr_t pidTask_attributes = { .name = "pidTask", .stack_size = 128
+		* 4, .priority = (osPriority_t) osPriorityNormal, };
+/* Definitions for checkPower */
+osThreadId_t checkPowerHandle;
+const osThreadAttr_t checkPower_attributes =
+		{ .name = "checkPower", .stack_size = 128 * 4, .priority =
+				(osPriority_t) osPriorityBelowNormal, };
 /* Definitions for checkTemp */
 osThreadId_t checkTempHandle;
 const osThreadAttr_t checkTemp_attributes = { .name = "checkTemp", .stack_size =
-		128 * 4, .priority = (osPriority_t) osPriorityLow, };
-/* Definitions for dspTalkTask */
-osThreadId_t dspTalkTaskHandle;
-const osThreadAttr_t dspTalkTask_attributes = { .name = "dspTalkTask",
-		.stack_size = 128 * 4, .priority = (osPriority_t) osPriorityLow, };
+		128 * 4, .priority = (osPriority_t) osPriorityNormal, };
+/* Definitions for flowRateTimer */
+osTimerId_t flowRateTimerHandle;
+const osTimerAttr_t flowRateTimer_attributes = { .name = "flowRateTimer" };
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
@@ -87,8 +98,11 @@ extern uint8_t CDC_Transmit_FS(uint8_t *Buf, uint16_t Len);
 /* USER CODE END FunctionPrototypes */
 
 void StartDefaultTask(void *argument);
-void checkTempStart(void *argument);
-void startDpsTalk(void *argument);
+void StartCheckInV(void *argument);
+void StartPidTask(void *argument);
+void StartCheckPower(void *argument);
+void startCheckTemp(void *argument);
+void flowRateCallback(void *argument);
 
 extern void MX_USB_DEVICE_Init(void);
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
@@ -104,7 +118,7 @@ void MX_FREERTOS_Init(void) {
 	PT100INNEN_CS_Pin, 3, 50);
 	Max31865_init(&pt100Aussen, &hspi1, PT100AUSSEN_CS_GPIO_Port,
 	PT100AUSSEN_CS_Pin, 3, 50);
-
+	startDPS();
 	/* USER CODE END Init */
 
 	/* USER CODE BEGIN RTOS_MUTEX */
@@ -114,6 +128,11 @@ void MX_FREERTOS_Init(void) {
 	/* USER CODE BEGIN RTOS_SEMAPHORES */
 	/* add semaphores, ... */
 	/* USER CODE END RTOS_SEMAPHORES */
+
+	/* Create the timer(s) */
+	/* creation of flowRateTimer */
+	flowRateTimerHandle = osTimerNew(flowRateCallback, osTimerPeriodic, NULL,
+			&flowRateTimer_attributes);
 
 	/* USER CODE BEGIN RTOS_TIMERS */
 	/* start timers, add new ones, ... */
@@ -128,12 +147,19 @@ void MX_FREERTOS_Init(void) {
 	defaultTaskHandle = osThreadNew(StartDefaultTask, NULL,
 			&defaultTask_attributes);
 
-	/* creation of checkTemp */
-	checkTempHandle = osThreadNew(checkTempStart, NULL, &checkTemp_attributes);
+	/* creation of checkInVoltage */
+	checkInVoltageHandle = osThreadNew(StartCheckInV, NULL,
+			&checkInVoltage_attributes);
 
-	/* creation of dspTalkTask */
-	dspTalkTaskHandle = osThreadNew(startDpsTalk, NULL,
-			&dspTalkTask_attributes);
+	/* creation of pidTask */
+	pidTaskHandle = osThreadNew(StartPidTask, NULL, &pidTask_attributes);
+
+	/* creation of checkPower */
+	checkPowerHandle = osThreadNew(StartCheckPower, NULL,
+			&checkPower_attributes);
+
+	/* creation of checkTemp */
+	checkTempHandle = osThreadNew(startCheckTemp, NULL, &checkTemp_attributes);
 
 	/* USER CODE BEGIN RTOS_THREADS */
 	/* add threads, ... */
@@ -155,6 +181,12 @@ void MX_FREERTOS_Init(void) {
 void StartDefaultTask(void *argument) {
 	/* init code for USB_DEVICE */
 	MX_USB_DEVICE_Init();
+	osTimerStart(flowRateTimerHandle, 10000); //startet den FlowRate Timer
+	dpsSetVoltage(500);
+	HAL_GPIO_WritePin(PUMPE_KRAFT_GPIO_Port, PUMPE_KRAFT_Pin, 1); //Startet eine Pumpe
+	osDelay(5000);
+	HAL_GPIO_WritePin(PUMPE_NORMAL_GPIO_Port, PUMPE_NORMAL_Pin, 1); // Startet die andere Pumpe
+
 	/* USER CODE BEGIN StartDefaultTask */
 	/* Infinite loop */
 	for (;;) {
@@ -165,15 +197,101 @@ void StartDefaultTask(void *argument) {
 	/* USER CODE END StartDefaultTask */
 }
 
-/* USER CODE BEGIN Header_checkTempStart */
+/* USER CODE BEGIN Header_StartCheckInV */
+/**
+ * @brief Function implementing the checkInVoltage thread.
+ * @param argument: Not used
+ * @retval None
+ */
+/* USER CODE END Header_StartCheckInV */
+void StartCheckInV(void *argument) {
+	/* USER CODE BEGIN StartCheckInV */
+	/* Infinite loop */
+	uint16_t eingangsSpannungen[16] = { 1260, 1260, 1260, 1260, 1260, 1260,
+			1260, 1260, 1260, 1260, 1260, 1260, 1260, 1260, 1260, 1260 };
+	uint32_t komplettspannung = 0;
+	uint8_t zaehler = 0;
+
+	/* Infinite loop */
+	for (;;) {
+		//Alle 500ms die Spannung checken, aber nur wenn nicht gezapft wird
+		if (!zapfBool) {
+			eingangsSpannungen[zaehler] = getEingangsSpannung();
+			zaehler++;
+			if (zaehler > 15) {
+				zaehler = 0;
+			}
+		}
+
+		//zum glätten der Eingangsspannung
+		komplettspannung = 0;
+		for (uint8_t i = 0; i < 16; i++) {
+			komplettspannung += eingangsSpannungen[i];
+		}
+		eingangsSpannung = (uint8_t) (komplettspannung / 160);
+
+		//check hier mal den batteriestatus
+		if (eingangsSpannung < 110) {
+			batterieStatus = BATT_ULTRALOW;
+		}
+		if (eingangsSpannung >= 110) {
+			batterieStatus = BATT_LOW;
+		}
+		if (eingangsSpannung > 120) {
+			batterieStatus = BATT_NORMAL;
+		}
+		if (eingangsSpannung > 130) {
+			batterieStatus = BATT_HIGH;
+		}
+		if (eingangsSpannung > 140) {
+			batterieStatus = BATT_ULTRAHIGH;
+		}
+		osDelay(5000);
+	}
+/* USER CODE END StartCheckInV */
+}
+
+/* USER CODE BEGIN Header_StartPidTask */
+/**
+ * @brief Function implementing the pidTask thread.
+ * @param argument: Not used
+ * @retval None
+ */
+/* USER CODE END Header_StartPidTask */
+void StartPidTask(void *argument) {
+	/* USER CODE BEGIN StartPidTask */
+	/* Infinite loop */
+	for (;;) {
+		osDelay(1);
+	}
+	/* USER CODE END StartPidTask */
+}
+
+/* USER CODE BEGIN Header_StartCheckPower */
+/**
+ * @brief Function implementing the checkPower thread.
+ * @param argument: Not used
+ * @retval None
+ */
+/* USER CODE END Header_StartCheckPower */
+void StartCheckPower(void *argument) {
+	/* USER CODE BEGIN StartCheckPower */
+	/* Infinite loop */
+	for (;;) {
+		osDelay(1);
+	}
+	/* USER CODE END StartCheckPower */
+}
+
+/* USER CODE BEGIN Header_startCheckTemp */
 /**
  * @brief Function implementing the checkTemp thread.
  * @param argument: Not used
  * @retval None
  */
-/* USER CODE END Header_checkTempStart */
-void checkTempStart(void *argument) {
-	/* USER CODE BEGIN checkTempStart */
+/* USER CODE END Header_startCheckTemp */
+void startCheckTemp(void *argument) {
+	/* USER CODE BEGIN startCheckTemp */
 	/* Infinite loop */
 	for (;;) {
 		float t;
@@ -188,75 +306,22 @@ void checkTempStart(void *argument) {
 
 		osDelay(500);
 	}
-	/* USER CODE END checkTempStart */
+	/* USER CODE END startCheckTemp */
 }
 
-/* USER CODE BEGIN Header_startDpsTalk */
-/**
- * @brief Function implementing the dspTalkTask thread.
- * @param argument: Not used
- * @retval None
- */
-/* USER CODE END Header_startDpsTalk */
-void startDpsTalk(void *argument) {
-	/* USER CODE BEGIN startDpsTalk */
-	modbus_t telegram;
-	uint32_t u32NotificationValue;
-	uint16_t eingangsSpannungen[16] = { 1260, 1260, 1260, 1260, 1260, 1260, 1260, 1260,
-			1260, 1260, 1260, 1260, 1260, 1260, 1260, 1260};
-	uint32_t komplettspannung = 0;
-	uint8_t zaehler = 0;
-
-	telegram.u8id = 1; // slave address
-	telegram.u8fct = MB_FC_READ_REGISTERS; // function code
-	telegram.u16RegAdd = RD_UIN; // start address in slave
-	telegram.u16CoilsNo = 2; // number of elements (coils or registers) to read
-	telegram.u16reg = ModbusDATA2; // pointer to a memory array in the Arduino
-	/* Infinite loop */
-	for (;;) {
-		//Alle 500ms die Spannung checken, aber nur wenn nicht gezapft wird
-		if (!zapfBool) {
-			ModbusQuery(&ModbusH2, telegram); // make a query
-			u32NotificationValue = ulTaskNotifyTake(pdTRUE, portMAX_DELAY); // block until query finishes
-			if (u32NotificationValue != ERR_OK_QUERY) {
-				//handle error
-				//  while(1);
-			}
-			//zum glätten der Eingangsspannung
-
-			eingangsSpannungen[zaehler] = ModbusDATA2[0];
-			zaehler++;
-			if (zaehler >15) {
-				zaehler = 0;
-			}
-
-			komplettspannung = 0;
-			for (uint8_t i = 0; i<16; i++) {
-				komplettspannung += eingangsSpannungen[i];
-			}
-			eingangsSpannung = (uint8_t) (komplettspannung / 160);
-
-			//check hier mal den batteriestatus
-			if (eingangsSpannung < 110) {
-				batterieStatus = BATT_ULTRALOW;
-			}
-			if (eingangsSpannung >= 110) {
-				batterieStatus = BATT_LOW;
-			}
-			if (eingangsSpannung > 120) {
-				batterieStatus = BATT_NORMAL;
-			}
-			if (eingangsSpannung > 130) {
-				batterieStatus = BATT_HIGH;
-			}
-			if (eingangsSpannung > 140) {
-				batterieStatus = BATT_ULTRAHIGH;
-			}
-
-		}
-		osDelay(5000);
+/* flowRateCallback function */
+void flowRateCallback(void *argument) {
+	/* USER CODE BEGIN flowRateCallback */
+	/* nimmt alle 10s die vom Flowmeter gemessenen Daten und teilt sie durch zehn sekunden :) */
+	kuehlWasserFlowRate = (uint16_t) (flowCounter / 50); //wir nehmens einfach mal durch 50....
+	flowCounter = 0;
+	if (kuehlWasserFlowRate == 0) {
+		HAL_GPIO_WritePin(LUEFTERS_GPIO_Port, LUEFTERS_Pin, 1);
+	} else {
+		HAL_GPIO_WritePin(LUEFTERS_GPIO_Port, LUEFTERS_Pin, 0);
 	}
-	/* USER CODE END startDpsTalk */
+
+	/* USER CODE END flowRateCallback */
 }
 
 /* Private application code --------------------------------------------------*/
