@@ -27,7 +27,7 @@ uint16_t befehlDaten = 0;
  * @brief	Startet I2C HAL in Slave Mode DMA
  */
 void i2c_slaveStartListen(I2C_HandleTypeDef *I2cHandle) {
-	if (HAL_I2C_Slave_Receive_DMA(I2cHandle, i2cRxBuffer, 1) //TODO TEMP_RX_BYTES
+	if (HAL_I2C_Slave_Receive_DMA(I2cHandle, i2cRxBuffer, TEMP_RX_BYTES)
 			!= HAL_OK) {
 		/* Transfer error in reception process */
 		Error_Handler();
@@ -63,7 +63,7 @@ void i2cTxDataConvert(void) {
  * @retval None
  */
 void HAL_I2C_SlaveTxCpltCallback(I2C_HandleTypeDef *I2cHandle) {
-	if (HAL_I2C_Slave_Receive_DMA(I2cHandle, i2cRxBuffer, 1) //TODO TEMP_RX_BYTES
+	if (HAL_I2C_Slave_Receive_DMA(I2cHandle, i2cRxBuffer, TEMP_RX_BYTES)
 			!= HAL_OK) {
 		Error_Handler();
 	}

@@ -35,11 +35,19 @@
 #include "Modbus.h"
 #include "common.h"
 #include "dpsControl.h"
+#include "pid.h"
 
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+PID_TypeDef TPID_Innen;
+PID_TypeDef TPID_Aussen;
+
+float Temp_Innen, PIDOut_Innen, TempSetpoint_Innen;
+float Temp_Aussen, PIDOut_Aussen, TempSetpoint_Aussen;
+
+
 
 /* USER CODE END PTD */
 
@@ -183,6 +191,7 @@ void StartDefaultTask(void *argument) {
 	MX_USB_DEVICE_Init();
 	osTimerStart(flowRateTimerHandle, 10000); //startet den FlowRate Timer
 	dpsSetVoltage(500);
+	dpsSetCurrent(2);
 	HAL_GPIO_WritePin(PUMPE_KRAFT_GPIO_Port, PUMPE_KRAFT_Pin, 1); //Startet eine Pumpe
 	osDelay(5000);
 	HAL_GPIO_WritePin(PUMPE_NORMAL_GPIO_Port, PUMPE_NORMAL_Pin, 1); // Startet die andere Pumpe
@@ -248,7 +257,7 @@ void StartCheckInV(void *argument) {
 		}
 		osDelay(5000);
 	}
-/* USER CODE END StartCheckInV */
+	/* USER CODE END StartCheckInV */
 }
 
 /* USER CODE BEGIN Header_StartPidTask */
@@ -260,9 +269,20 @@ void StartCheckInV(void *argument) {
 /* USER CODE END Header_StartPidTask */
 void StartPidTask(void *argument) {
 	/* USER CODE BEGIN StartPidTask */
+	TempSetpoint_Aussen = 4;
+
+	PID(&TPID_Aussen, &pt100AussenTemp, &PIDOut_Aussen, &TempSetpoint_Aussen, 100,
+			5, 1, _PID_P_ON_E, _PID_CD_REVERSE);
+
+	PID_SetMode(&TPID_Aussen, _PID_MODE_AUTOMATIC);
+	PID_SetSampleTime(&TPID_Aussen, 1); //macht freeRTOS!
+	PID_SetOutputLimits(&TPID_Aussen, 2, 1000); //2=20mA damits nicht zurückwärmt, 1000 = 10.00A -> das sind 480W mein Freund. 20A hält DPS5020 aus pro Stück
+
 	/* Infinite loop */
 	for (;;) {
-		osDelay(1);
+		PID_Compute(&TPID_Aussen);
+		dpsSetCurrent((uint16_t)PIDOut_Aussen);
+		osDelay(500); //reicht aus, das Ding is eh träg
 	}
 	/* USER CODE END StartPidTask */
 }
@@ -276,9 +296,12 @@ void StartPidTask(void *argument) {
 /* USER CODE END Header_StartCheckPower */
 void StartCheckPower(void *argument) {
 	/* USER CODE BEGIN StartCheckPower */
+	/*
+	 * Hier wird der Stromverbrauch ermittelt und gedingst!
+	 */
 	/* Infinite loop */
 	for (;;) {
-		osDelay(1);
+		osDelay(1000);
 	}
 	/* USER CODE END StartCheckPower */
 }

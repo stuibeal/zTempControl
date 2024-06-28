@@ -63,19 +63,37 @@ uint16_t getWatt(void) {
 	return watt;
 }
 
+/**
+ * @brief Sperrt das Userinterface der beiden DPS
+ */
 void dpsSetLock(uint16_t yesno) {
+	dpsSetSingleRegister(RD_KEYLOCK, yesno);
 }
+
 void dpsSetBacklight(uint16_t backlightvalue) {
+	dpsSetSingleRegister(RD_BACKLIGHT, backlightvalue);
 }
+
 void dpsOnOff(uint16_t onoff) {
+	dpsSetSingleRegister(RD_ONOFF, onoff);
+
 }
 uint16_t getAusgangsSpannung(void) {
-	return 0;
+	uint16_t spannung = 0;
+	spannung += dps0getSingleRegister(RD_UOUT);
+	spannung += dps1getSingleRegister(RD_UOUT);
+	return (spannung/2);
 }
 uint16_t getAusgangsStrom(void) {
-	return 0;
+	uint16_t strom = 0;
+	strom += dps0getSingleRegister(RD_IOUT);
+	strom += dps1getSingleRegister(RD_IOUT);
+	return (strom/2);
+
 }
 void dpsSetCurrent(uint16_t ampere) {
+	dpsSetSingleRegister(RD_I_SET, ampere);
+
 }
 void dpsSetVoltage(uint16_t volt) {
 	dpsSetSingleRegister(RD_U_SET, volt);
