@@ -56,8 +56,10 @@
 extern I2C_HandleTypeDef hi2c1;
 
 void i2c_slaveStartListen(I2C_HandleTypeDef *hi2c);
-
+void checkMasterBefehl(void);
 void i2cRxDataConvert(void);
 void i2cTxDataConvert(void);
+void goSleep(void);
+void wakeUp(void);
 
 #endif /* INC_I2C_SLAVE_H_ */

@@ -183,6 +183,7 @@ void SystemClock_Config(void)
 
 /*
  * @brief	Interruptroutine, zählt eins hoch wenn der Flowsensor flowt.
+ * 			Achtung: Das ist nicht der Flowmeter uC! der Temp uC braucht das auch.
  */
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
 	if (GPIO_Pin == FLOWSENSOR_Pin) {

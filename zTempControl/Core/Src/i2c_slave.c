@@ -6,6 +6,7 @@
  */
 #include "i2c_slave.h"
 
+
 uint8_t i2cRxBuffer[TEMP_RX_BYTES];
 uint8_t i2cTxBuffer[TEMP_TX_BYTES];
 
@@ -22,7 +23,6 @@ int16_t zulaufTemp = 0;
 int16_t kuehlWasserTemp = 0;
 uint16_t befehlDaten = 0;
 
-
 /**
  * @brief	Startet I2C HAL in Slave Mode DMA
  */
@@ -34,11 +34,62 @@ void i2c_slaveStartListen(I2C_HandleTypeDef *I2cHandle) {
 	}
 }
 
+void checkMasterBefehl() {
+	switch (befehlVomMaster) {
+	case SET_TEMPERATUR:
+		TempSetpoint_Aussen = (float) (befehlDaten / 100);
+		TempSetpoint_Innen = (float) (befehlDaten / 100);
+		break;
+	case EBI_MODE:
+		if (befehlDaten) {
+			TempSetpoint_Aussen = 2;
+			TempSetpoint_Innen = 2;
+			PID_SetOutputLimits(&TPID_Aussen, START_MIN_A, 1500);
+			PID_SetOutputLimits(&TPID_Innen, START_MIN_A, 1500);
+		} else {
+			TempSetpoint_Aussen = START_SET_TEMP;
+			TempSetpoint_Innen = START_SET_TEMP;
+			PID_SetOutputLimits(&TPID_Aussen, START_MIN_A, START_MAX_A);
+			PID_SetOutputLimits(&TPID_Innen, START_MIN_A, START_MAX_A);
+		}
+		break;
+	case BEGIN_ZAPF:
+		zapfBool = 1;
+		break;
+	case END_ZAPF:
+		zapfBool = 0;
+		stromVerbrauchLetzteZapfung = 0;
+		break;
+	case KURZ_VOR_ZAPFENDE:
+		break;
+	case LOW_ENERGY:
+		break;
+	case WACH_AUF:
+		sleepMode = 0;
+		wakeUp();
+		break;
+	case ZAPFEN_STREICH:
+		sleepMode = 1;
+		goSleep();
+
+
+		break;
+	default:
+		break;
+	}
+	befehlVomMaster = 0;
+	befehlDaten = 0;
+}
+
 void i2cRxDataConvert(void) {
 	befehlVomMaster = i2cRxBuffer[0];
 	zulaufTemp = (int16_t) (i2cRxBuffer[3] << 8) + i2cRxBuffer[2];
 	kuehlWasserTemp = (int16_t) (i2cRxBuffer[5] << 8) + i2cRxBuffer[4];
 	befehlDaten = (uint16_t) (i2cRxBuffer[7] << 8) + i2cRxBuffer[6];
+
+	if (befehlVomMaster > 0x01) {
+		checkMasterBefehl();
+	}
 }
 
 void i2cTxDataConvert(void) {

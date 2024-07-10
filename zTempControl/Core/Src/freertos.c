@@ -47,7 +47,7 @@ PID_TypeDef TPID_Aussen;
 float Temp_Innen, PIDOut_Innen, TempSetpoint_Innen;
 float Temp_Aussen, PIDOut_Aussen, TempSetpoint_Aussen;
 
-
+uint8_t sleepMode = 0;
 
 /* USER CODE END PTD */
 
@@ -103,6 +103,8 @@ const osTimerAttr_t flowRateTimer_attributes = { .name = "flowRateTimer" };
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
 extern uint8_t CDC_Transmit_FS(uint8_t *Buf, uint16_t Len);
+void goSleep();
+void wakeUp();
 /* USER CODE END FunctionPrototypes */
 
 void StartDefaultTask(void *argument);
@@ -201,7 +203,13 @@ void StartDefaultTask(void *argument) {
 	for (;;) {
 		//Hier nur ein Lebenszeichen von sich geben
 		HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
+
+		//*Wenn Kühlleistung wenig -> Kraftpumpe aus
+
+
 		osDelay(1000);
+
+
 	}
 	/* USER CODE END StartDefaultTask */
 }
@@ -269,14 +277,15 @@ void StartCheckInV(void *argument) {
 /* USER CODE END Header_StartPidTask */
 void StartPidTask(void *argument) {
 	/* USER CODE BEGIN StartPidTask */
-	TempSetpoint_Aussen = 4;
+	TempSetpoint_Aussen = START_SET_TEMP;
+	TempSetpoint_Innen = START_SET_TEMP;
 
-	PID(&TPID_Aussen, &pt100AussenTemp, &PIDOut_Aussen, &TempSetpoint_Aussen, 100,
-			5, 1, _PID_P_ON_E, _PID_CD_REVERSE);
+	PID(&TPID_Aussen, &pt100AussenTemp, &PIDOut_Aussen, &TempSetpoint_Aussen, START_KP,
+			START_KI, START_KD, _PID_P_ON_E, _PID_CD_REVERSE);
 
 	PID_SetMode(&TPID_Aussen, _PID_MODE_AUTOMATIC);
 	PID_SetSampleTime(&TPID_Aussen, 1); //macht freeRTOS!
-	PID_SetOutputLimits(&TPID_Aussen, 2, 1000); //2=20mA damits nicht zurückwärmt, 1000 = 10.00A -> das sind 480W mein Freund. 20A hält DPS5020 aus pro Stück
+	PID_SetOutputLimits(&TPID_Aussen, START_MIN_A, START_MAX_A);
 
 	/* Infinite loop */
 	for (;;) {
@@ -349,6 +358,37 @@ void flowRateCallback(void *argument) {
 
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
+void goSleep() {
+	vTaskSuspendAll();
+	dpsOnOff(0);
+	dpsSetLock(1);
+	dpsSetBacklight(5);
+	dpsSetVoltage(0);
+	dpsSetCurrent(0);
+	HAL_Delay(1000);
+	HAL_GPIO_WritePin(PUMPE_KRAFT_GPIO_Port, PUMPE_KRAFT_Pin, 0);
+	dpsSetBacklight(4);
+	HAL_Delay(1000);
+	HAL_GPIO_WritePin(PUMPE_NORMAL_GPIO_Port, PUMPE_NORMAL_Pin, 0);
+	dpsSetBacklight(3);
+	HAL_Delay(1000);
+	HAL_GPIO_WritePin(LUEFTERS_GPIO_Port, LUEFTERS_Pin, 0);
+	dpsSetBacklight(2);
+	HAL_Delay(1000);
+	dpsSetBacklight(1);
+	HAL_Delay(1000);
+	dpsSetBacklight(0);
+	HAL_Delay(1000);
+}
+
+void wakeUp() {
+	dpsOnOff(1);
+	dpsSetLock(1);
+	dpsSetBacklight(5);
+	dpsSetVoltage(START_MAX_V);
+	dpsSetCurrent(2);
+	xTaskResumeAll();
+}
 
 /* USER CODE END Application */
 
