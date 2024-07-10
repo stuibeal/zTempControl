@@ -56,6 +56,8 @@ __IO uint32_t flowCounter = 0;
 uint16_t dataRxRegister[4]= {0,0,0,0};
 uint16_t dataTxRegister[6]= {0,0,0,0,0,0};
 uint8_t zapfBool = 0;
+float lastUserSetTemp = 0;
+
 
 /* USER CODE END PV */
 

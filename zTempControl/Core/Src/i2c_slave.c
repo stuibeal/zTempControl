@@ -37,30 +37,34 @@ void i2c_slaveStartListen(I2C_HandleTypeDef *I2cHandle) {
 void checkMasterBefehl() {
 	switch (befehlVomMaster) {
 	case SET_TEMPERATUR:
-		TempSetpoint_Aussen = (float) (befehlDaten / 100);
-		TempSetpoint_Innen = (float) (befehlDaten / 100);
+		lastUserSetTemp =  (float) (befehlDaten / 100);
+		if (batterieStatus < BATT_LOW) {
+			TempSetpoint_Aussen = lastUserSetTemp;
+			TempSetpoint_Innen = lastUserSetTemp;
+		}
 		break;
 	case EBI_MODE:
 		if (befehlDaten) {
 			TempSetpoint_Aussen = 2;
-			TempSetpoint_Innen = 2;
-			PID_SetOutputLimits(&TPID_Aussen, START_MIN_A, 1500);
-			PID_SetOutputLimits(&TPID_Innen, START_MIN_A, 1500);
+			TempSetpoint_Innen = 1.5;
+			PID_SetOutputLimits(&TPID_Aussen, AUSSEN_MIN_A, 2000);
+			PID_SetOutputLimits(&TPID_Innen, INNEN_MIN_A, 2000);
 		} else {
-			TempSetpoint_Aussen = START_SET_TEMP;
-			TempSetpoint_Innen = START_SET_TEMP;
-			PID_SetOutputLimits(&TPID_Aussen, START_MIN_A, START_MAX_A);
-			PID_SetOutputLimits(&TPID_Innen, START_MIN_A, START_MAX_A);
+			TempSetpoint_Aussen = AUSSEN_SET_TEMP;
+			TempSetpoint_Innen = INNEN_SET_TEMP;
+			PID_SetOutputLimits(&TPID_Aussen, AUSSEN_MIN_A, AUSSEN_MAX_A);
+			PID_SetOutputLimits(&TPID_Innen, INNEN_MIN_A, INNEN_MAX_A);
 		}
 		break;
 	case BEGIN_ZAPF:
 		zapfBool = 1;
 		break;
 	case END_ZAPF:
-		zapfBool = 0;
 		stromVerbrauchLetzteZapfung = 0;
+		wattSekunden = 0;
 		break;
 	case KURZ_VOR_ZAPFENDE:
+		zapfBool = 0;
 		break;
 	case LOW_ENERGY:
 		break;

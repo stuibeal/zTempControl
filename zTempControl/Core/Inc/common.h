@@ -18,14 +18,25 @@
 #define BATT_NORMAL 0x02
 #define BATT_LOW 0x03
 #define BATT_ULTRALOW 0x04
-#define START_SET_TEMP 5
-#define START_KP 260
-#define START_KI 3
-#define START_KD 5
+#define MIN_TEMP 2
+#define AUSSEN_SET_TEMP 5
+#define AUSSEN_KP 260
+#define AUSSEN_KI 3
+#define AUSSEN_KD 5
+#define INNEN_SET_TEMP 5
+#define INNEN_KP 260
+#define INNEN_KI 3
+#define INNEN_KD 5
+
+
 //2=20mA damits nicht zurückwärmt, 1000 = 10.00A -> das sind 240W mein Freund. 20A hält DPS5020 aus pro Stück
-#define START_MIN_A 2 // 00,02 A = 20mA
-#define START_MAX_A 1000 // 10,00 A
-#define START_MAX_V 1400
+#define AUSSEN_MIN_A 2 // 00,02 A = 20mA
+#define AUSSEN_MAX_A 1500 // 10,00 A
+#define AUSSEN_MAX_V 1400
+
+#define INNEN_MIN_A 2 // 00,02 A = 20mA
+#define INNEN_MAX_A 500 // 10,00 A
+#define INNEN_MAX_V 1400
 
 
 //I2C
@@ -61,6 +72,7 @@ extern PID_TypeDef TPID_Innen;
 extern PID_TypeDef TPID_Aussen;
 extern float Temp_Innen, PIDOut_Innen, TempSetpoint_Innen;
 extern float Temp_Aussen, PIDOut_Aussen, TempSetpoint_Aussen;
+extern float lastUserSetTemp;
 
 //Flowsensor
 extern uint16_t flowRate;
@@ -69,6 +81,7 @@ extern volatile uint32_t flowCounter;
 //global, ist grad zapfen oder nicht
 extern uint8_t zapfBool;
 extern uint8_t sleepMode;
+extern uint64_t wattSekunden;
 
 extern void goSleep(void);
 extern void wakeUp(void);
