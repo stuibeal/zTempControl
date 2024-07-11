@@ -78,32 +78,49 @@ uint64_t wattSekunden;
 /* USER CODE END Variables */
 /* Definitions for defaultTask */
 osThreadId_t defaultTaskHandle;
-const osThreadAttr_t defaultTask_attributes = { .name = "defaultTask",
-		.stack_size = 128 * 4, .priority = (osPriority_t) osPriorityNormal, };
+const osThreadAttr_t defaultTask_attributes = {
+  .name = "defaultTask",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
 /* Definitions for checkInVoltage */
 osThreadId_t checkInVoltageHandle;
-const osThreadAttr_t checkInVoltage_attributes = { .name = "checkInVoltage",
-		.stack_size = 128 * 4, .priority = (osPriority_t) osPriorityLow, };
+const osThreadAttr_t checkInVoltage_attributes = {
+  .name = "checkInVoltage",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityLow,
+};
 /* Definitions for pidTask */
 osThreadId_t pidTaskHandle;
-const osThreadAttr_t pidTask_attributes = { .name = "pidTask", .stack_size = 128
-		* 4, .priority = (osPriority_t) osPriorityNormal, };
+const osThreadAttr_t pidTask_attributes = {
+  .name = "pidTask",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityAboveNormal,
+};
 /* Definitions for checkPower */
 osThreadId_t checkPowerHandle;
-const osThreadAttr_t checkPower_attributes =
-		{ .name = "checkPower", .stack_size = 128 * 4, .priority =
-				(osPriority_t) osPriorityBelowNormal, };
+const osThreadAttr_t checkPower_attributes = {
+  .name = "checkPower",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityBelowNormal,
+};
 /* Definitions for checkTemp */
 osThreadId_t checkTempHandle;
-const osThreadAttr_t checkTemp_attributes = { .name = "checkTemp", .stack_size =
-		128 * 4, .priority = (osPriority_t) osPriorityNormal, };
+const osThreadAttr_t checkTemp_attributes = {
+  .name = "checkTemp",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityAboveNormal,
+};
 /* Definitions for flowRateTimer */
 osTimerId_t flowRateTimerHandle;
-const osTimerAttr_t flowRateTimer_attributes = { .name = "flowRateTimer" };
+const osTimerAttr_t flowRateTimer_attributes = {
+  .name = "flowRateTimer"
+};
 /* Definitions for wattSekundenTimer */
 osTimerId_t wattSekundenTimerHandle;
-const osTimerAttr_t wattSekundenTimer_attributes =
-		{ .name = "wattSekundenTimer" };
+const osTimerAttr_t wattSekundenTimer_attributes = {
+  .name = "wattSekundenTimer"
+};
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
@@ -124,70 +141,65 @@ extern void MX_USB_DEVICE_Init(void);
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
 /**
- * @brief  FreeRTOS initialization
- * @param  None
- * @retval None
- */
+  * @brief  FreeRTOS initialization
+  * @param  None
+  * @retval None
+  */
 void MX_FREERTOS_Init(void) {
-	/* USER CODE BEGIN Init */
+  /* USER CODE BEGIN Init */
 	Max31865_init(&pt100Innen, &hspi1, PT100INNEN_CS_GPIO_Port,
 	PT100INNEN_CS_Pin, 3, 50);
 	Max31865_init(&pt100Aussen, &hspi1, PT100AUSSEN_CS_GPIO_Port,
 	PT100AUSSEN_CS_Pin, 3, 50);
 	startDPS();
-	/* USER CODE END Init */
+  /* USER CODE END Init */
 
-	/* USER CODE BEGIN RTOS_MUTEX */
+  /* USER CODE BEGIN RTOS_MUTEX */
 	/* add mutexes, ... */
-	/* USER CODE END RTOS_MUTEX */
+  /* USER CODE END RTOS_MUTEX */
 
-	/* USER CODE BEGIN RTOS_SEMAPHORES */
+  /* USER CODE BEGIN RTOS_SEMAPHORES */
 	/* add semaphores, ... */
-	/* USER CODE END RTOS_SEMAPHORES */
+  /* USER CODE END RTOS_SEMAPHORES */
 
-	/* Create the timer(s) */
-	/* creation of flowRateTimer */
-	flowRateTimerHandle = osTimerNew(flowRateCallback, osTimerPeriodic, NULL,
-			&flowRateTimer_attributes);
+  /* Create the timer(s) */
+  /* creation of flowRateTimer */
+  flowRateTimerHandle = osTimerNew(flowRateCallback, osTimerPeriodic, NULL, &flowRateTimer_attributes);
 
-	/* creation of wattSekundenTimer */
-	wattSekundenTimerHandle = osTimerNew(wattSekundenCallback, osTimerPeriodic,
-			NULL, &wattSekundenTimer_attributes);
+  /* creation of wattSekundenTimer */
+  wattSekundenTimerHandle = osTimerNew(wattSekundenCallback, osTimerPeriodic, NULL, &wattSekundenTimer_attributes);
 
-	/* USER CODE BEGIN RTOS_TIMERS */
+  /* USER CODE BEGIN RTOS_TIMERS */
 	/* start timers, add new ones, ... */
-	/* USER CODE END RTOS_TIMERS */
+  /* USER CODE END RTOS_TIMERS */
 
-	/* USER CODE BEGIN RTOS_QUEUES */
+  /* USER CODE BEGIN RTOS_QUEUES */
 	/* add queues, ... */
-	/* USER CODE END RTOS_QUEUES */
+  /* USER CODE END RTOS_QUEUES */
 
-	/* Create the thread(s) */
-	/* creation of defaultTask */
-	defaultTaskHandle = osThreadNew(StartDefaultTask, NULL,
-			&defaultTask_attributes);
+  /* Create the thread(s) */
+  /* creation of defaultTask */
+  defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
 
-	/* creation of checkInVoltage */
-	checkInVoltageHandle = osThreadNew(StartCheckInV, NULL,
-			&checkInVoltage_attributes);
+  /* creation of checkInVoltage */
+  checkInVoltageHandle = osThreadNew(StartCheckInV, NULL, &checkInVoltage_attributes);
 
-	/* creation of pidTask */
-	pidTaskHandle = osThreadNew(StartPidTask, NULL, &pidTask_attributes);
+  /* creation of pidTask */
+  pidTaskHandle = osThreadNew(StartPidTask, NULL, &pidTask_attributes);
 
-	/* creation of checkPower */
-	checkPowerHandle = osThreadNew(StartCheckPower, NULL,
-			&checkPower_attributes);
+  /* creation of checkPower */
+  checkPowerHandle = osThreadNew(StartCheckPower, NULL, &checkPower_attributes);
 
-	/* creation of checkTemp */
-	checkTempHandle = osThreadNew(startCheckTemp, NULL, &checkTemp_attributes);
+  /* creation of checkTemp */
+  checkTempHandle = osThreadNew(startCheckTemp, NULL, &checkTemp_attributes);
 
-	/* USER CODE BEGIN RTOS_THREADS */
+  /* USER CODE BEGIN RTOS_THREADS */
 	/* add threads, ... */
-	/* USER CODE END RTOS_THREADS */
+  /* USER CODE END RTOS_THREADS */
 
-	/* USER CODE BEGIN RTOS_EVENTS */
+  /* USER CODE BEGIN RTOS_EVENTS */
 	/* add events, ... */
-	/* USER CODE END RTOS_EVENTS */
+  /* USER CODE END RTOS_EVENTS */
 
 }
 
@@ -198,10 +210,11 @@ void MX_FREERTOS_Init(void) {
  * @retval None
  */
 /* USER CODE END Header_StartDefaultTask */
-void StartDefaultTask(void *argument) {
-	/* init code for USB_DEVICE */
-	MX_USB_DEVICE_Init();
-	/* USER CODE BEGIN StartDefaultTask */
+void StartDefaultTask(void *argument)
+{
+  /* init code for USB_DEVICE */
+  MX_USB_DEVICE_Init();
+  /* USER CODE BEGIN StartDefaultTask */
 	osTimerStart(flowRateTimerHandle, 10000); //startet den FlowRate Timer
 	osTimerStart(wattSekundenTimerHandle, 500); //alle 0,5s die Wattzahl mitschreiben
 	dpsSetVoltage(INNEN_MAX_V);
@@ -219,7 +232,7 @@ void StartDefaultTask(void *argument) {
 		osDelay(1000);
 
 	}
-	/* USER CODE END StartDefaultTask */
+  /* USER CODE END StartDefaultTask */
 }
 
 /* USER CODE BEGIN Header_StartCheckInV */
@@ -229,8 +242,9 @@ void StartDefaultTask(void *argument) {
  * @retval None
  */
 /* USER CODE END Header_StartCheckInV */
-void StartCheckInV(void *argument) {
-	/* USER CODE BEGIN StartCheckInV */
+void StartCheckInV(void *argument)
+{
+  /* USER CODE BEGIN StartCheckInV */
 	/* Infinite loop */
 	uint16_t eingangsSpannungen[16] = { 1260, 1260, 1260, 1260, 1260, 1260,
 			1260, 1260, 1260, 1260, 1260, 1260, 1260, 1260, 1260, 1260 };
@@ -273,7 +287,7 @@ void StartCheckInV(void *argument) {
 		}
 		osDelay(5000);
 	}
-	/* USER CODE END StartCheckInV */
+  /* USER CODE END StartCheckInV */
 }
 
 /* USER CODE BEGIN Header_StartPidTask */
@@ -283,8 +297,9 @@ void StartCheckInV(void *argument) {
  * @retval None
  */
 /* USER CODE END Header_StartPidTask */
-void StartPidTask(void *argument) {
-	/* USER CODE BEGIN StartPidTask */
+void StartPidTask(void *argument)
+{
+  /* USER CODE BEGIN StartPidTask */
 	TempSetpoint_Aussen = AUSSEN_SET_TEMP;
 	TempSetpoint_Innen = INNEN_SET_TEMP;
 
@@ -307,16 +322,15 @@ void StartPidTask(void *argument) {
 	/* Infinite loop */
 	for (;;) {
 		PID_Compute(&TPID_Aussen);
-		osDelay(250);
 		PID_Compute(&TPID_Innen);
-		osDelay(250); //reicht aus, das Ding is eh träg
-		if (zapfBool && batterieStatus > BATT_LOW) {
+		if (zapfBool) {
 			dpsSetCurrent((uint16_t) PIDOut_Aussen);
 		} else {
 			dpsSetCurrent((uint16_t) PIDOut_Innen);
 		}
+		osDelay(500);
 	}
-	/* USER CODE END StartPidTask */
+  /* USER CODE END StartPidTask */
 }
 
 /* USER CODE BEGIN Header_StartCheckPower */
@@ -326,8 +340,9 @@ void StartPidTask(void *argument) {
  * @retval None
  */
 /* USER CODE END Header_StartCheckPower */
-void StartCheckPower(void *argument) {
-	/* USER CODE BEGIN StartCheckPower */
+void StartCheckPower(void *argument)
+{
+  /* USER CODE BEGIN StartCheckPower */
 	/*
 	 * Hier wird der Stromverbrauch ermittelt und gedingst!
 	 */
@@ -371,10 +386,11 @@ void StartCheckPower(void *argument) {
 			dpsOnOff(0);
 			break;
 		}
+		//TODO: hier noch funktion für kühlwassercheck! wenn too hot!
 		osDelay(60000);
 
 	}
-	/* USER CODE END StartCheckPower */
+  /* USER CODE END StartCheckPower */
 }
 
 /* USER CODE BEGIN Header_startCheckTemp */
@@ -384,8 +400,9 @@ void StartCheckPower(void *argument) {
  * @retval None
  */
 /* USER CODE END Header_startCheckTemp */
-void startCheckTemp(void *argument) {
-	/* USER CODE BEGIN startCheckTemp */
+void startCheckTemp(void *argument)
+{
+  /* USER CODE BEGIN startCheckTemp */
 	/* Infinite loop */
 	for (;;) {
 		float t;
@@ -400,12 +417,13 @@ void startCheckTemp(void *argument) {
 		blockAussenTemp = (int16_t) (pt100AussenTemp * 100);
 		osDelay(320);
 	}
-	/* USER CODE END startCheckTemp */
+  /* USER CODE END startCheckTemp */
 }
 
 /* flowRateCallback function */
-void flowRateCallback(void *argument) {
-	/* USER CODE BEGIN flowRateCallback */
+void flowRateCallback(void *argument)
+{
+  /* USER CODE BEGIN flowRateCallback */
 	/* nimmt alle 10s die vom Flowmeter gemessenen Daten und teilt sie durch zehn sekunden :) */
 	kuehlWasserFlowRate = (uint16_t) (flowCounter / 50); //wir nehmens einfach mal durch 50....
 	flowCounter = 0;
@@ -415,18 +433,19 @@ void flowRateCallback(void *argument) {
 		HAL_GPIO_WritePin(LUEFTERS_GPIO_Port, LUEFTERS_Pin, 0);
 	}
 
-	/* USER CODE END flowRateCallback */
+  /* USER CODE END flowRateCallback */
 }
 
 /* wattSekundenCallback function */
-void wattSekundenCallback(void *argument) {
-	/* USER CODE BEGIN wattSekundenCallback */
+void wattSekundenCallback(void *argument)
+{
+  /* USER CODE BEGIN wattSekundenCallback */
 	stromVerbrauchAktuell = getWatt();
 	/* wattsekunden ist z.b. 36000, heisst 360,00 Ws */
 	wattSekunden += stromVerbrauchAktuell / 2; //weil alle 0,5s!
 	//jetzt mal in Wh umrechnen (/3600) und nur eine Kommastelle (/10)
 	stromVerbrauchLetzteZapfung = (uint16_t) wattSekunden / 36000;
-	/* USER CODE END wattSekundenCallback */
+  /* USER CODE END wattSekundenCallback */
 }
 
 /* Private application code --------------------------------------------------*/
@@ -456,9 +475,9 @@ void goSleep() {
 
 void wakeUp() {
 	dpsSetLock(1);
-	HAL_GPIO_WritePin(PUMPE_KRAFT_GPIO_Port, PUMPE_KRAFT_Pin, 0);
+	HAL_GPIO_WritePin(PUMPE_KRAFT_GPIO_Port, PUMPE_KRAFT_Pin, 1);
 	HAL_Delay(1000);
-	HAL_GPIO_WritePin(PUMPE_NORMAL_GPIO_Port, PUMPE_NORMAL_Pin, 0);
+	HAL_GPIO_WritePin(PUMPE_NORMAL_GPIO_Port, PUMPE_NORMAL_Pin, 1);
 	HAL_Delay(1000);
 	dpsSetBacklight(5);
 	dpsSetVoltage(INNEN_MAX_V);
