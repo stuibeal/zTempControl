@@ -3,6 +3,13 @@
  *
  *  Created on: Jun 22, 2024
  *      Author: al
+ *
+ *
+ *
+ *    PINS für Lüfter, Pumpen:
+ *    Gelbe KontrollLED: Lüfter, PB1
+ *    Grüne KontrollLED: Pumpe Kraft, PA15
+ *    Rote KontrollLED: Pumpe Normal, PB0,
  */
 
 #ifndef INC_COMMON_H_

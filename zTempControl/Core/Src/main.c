@@ -113,6 +113,19 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   i2c_slaveStartListen(&hi2c1);
+//  HAL_Delay(2000);
+//  HAL_GPIO_WritePin(LUEFTERS_GPIO_Port, LUEFTERS_Pin, 1);
+//  HAL_Delay(30000);
+//  HAL_GPIO_WritePin(LUEFTERS_GPIO_Port, LUEFTERS_Pin, 0);
+//  HAL_Delay(2000);
+//  HAL_GPIO_WritePin(PUMPE_KRAFT_GPIO_Port, PUMPE_KRAFT_Pin, 1);
+//  HAL_Delay(30000);
+//  HAL_GPIO_WritePin(PUMPE_KRAFT_GPIO_Port, PUMPE_KRAFT_Pin, 0);
+//  HAL_Delay(10000);
+//  HAL_GPIO_WritePin(PUMPE_NORMAL_GPIO_Port, PUMPE_NORMAL_Pin, 1);
+//  HAL_Delay(30000);
+//  HAL_GPIO_WritePin(PUMPE_NORMAL_GPIO_Port, PUMPE_NORMAL_Pin, 0);
+//  HAL_Delay(2000);
   /* USER CODE END 2 */
 
   /* Init scheduler */
