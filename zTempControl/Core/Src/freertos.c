@@ -257,7 +257,9 @@ void StartCheckInV(void *argument) {
 	for (;;) {
 		//Alle 5000ms die Spannung checken, aber nur wenn nicht gezapft wird
 		if (!zapfBool) {
-			eingangsSpannungen[zaehler] = dpsInputVoltage[0];
+			if (dpsInputVoltage[0] > 0) {
+				eingangsSpannungen[zaehler] = dpsInputVoltage[0];
+			}
 			zaehler++;
 			if (zaehler > 15) {
 				zaehler = 0;
@@ -451,9 +453,9 @@ void StartDpsTalk(void *argument) {
 		if (u32NotificationValue != ERR_OK_QUERY) {
 			dpsError();
 		}
-		dpsOutputVoltage[0] =ModbusDataIn0[0];
+		dpsOutputVoltage[0] = ModbusDataIn0[0];
 		dpsOutputCurrent[0] = ModbusDataIn0[1];
-		dpsInputVoltage[0]=ModbusDataIn0[3];
+		dpsInputVoltage[0] = ModbusDataIn0[3];
 
 		osDelay(100);
 
@@ -462,13 +464,13 @@ void StartDpsTalk(void *argument) {
 		if (u32NotificationValue != ERR_OK_QUERY) {
 			dpsError();
 		}
-		dpsOutputVoltage[1] =ModbusDataIn1[0];
+		dpsOutputVoltage[1] = ModbusDataIn1[0];
 		dpsOutputCurrent[1] = ModbusDataIn1[1];
-		dpsInputVoltage[1]=ModbusDataIn1[3];
+		dpsInputVoltage[1] = ModbusDataIn1[3];
 
 		osDelay(100);
 
-		eingangsSpannung = (dpsInputVoltage[0]+dpsInputVoltage[1])/20; //schnittmenge mit 1 kommastelle
+		eingangsSpannung = (dpsInputVoltage[0] + dpsInputVoltage[1]) / 20; //schnittmenge mit 1 kommastelle
 
 	}
 	/* USER CODE END StartDpsTalk */
@@ -505,10 +507,17 @@ void wattSekundenCallback(void *argument) {
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
 void goSleep() {
-	vTaskSuspendAll();
+	osTimerStop(wattSekundenTimerHandle);
+	osTimerStop(flowRateTimerHandle);
+	vTaskSuspend(defaultTaskHandle);
 	HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, 1);
+	vTaskSuspend(checkInVoltageHandle);
+	vTaskSuspend(checkPowerHandle);
+	vTaskSuspend(checkTempHandle);
+	vTaskSuspend(pidTaskHandle);
+	vTaskSuspend(dpsTalkHandle);
 	dpsOnOff(0);
-	dpsSetLock(1);
+	dpsSetLock(0);
 	dpsSetBacklight(5);
 	dpsSetVoltage(0);
 	dpsSetCurrent(0);
@@ -527,20 +536,20 @@ void goSleep() {
 	dpsSetBacklight(0);
 	HAL_Delay(1000);
 	HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, 0);
+	vTaskSuspendAll();
 
 }
 
 void wakeUp() {
-	dpsSetLock(1);
+	xTaskResumeAll();
+	dpsSetLock(0);
 	HAL_GPIO_WritePin(PUMPE_KRAFT_GPIO_Port, PUMPE_KRAFT_Pin, 1);
 	HAL_Delay(1000);
 	HAL_GPIO_WritePin(PUMPE_NORMAL_GPIO_Port, PUMPE_NORMAL_Pin, 1);
 	HAL_Delay(1000);
 	dpsSetBacklight(5);
-	dpsSetVoltage(INNEN_MAX_V);
 	dpsSetCurrent(INNEN_MIN_A);
 	dpsOnOff(1);
-	xTaskResumeAll();
 }
 
 /* USER CODE END Application */
