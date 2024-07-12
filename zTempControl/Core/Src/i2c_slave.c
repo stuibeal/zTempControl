@@ -38,7 +38,7 @@ void checkMasterBefehl() {
 	switch (befehlVomMaster) {
 	case SET_TEMPERATUR:
 		lastUserSetTemp =  (float) (befehlDaten / 100);
-		if (batterieStatus < BATT_LOW) {
+		if (batterieStatus < BATT_LOW && lastUserSetTemp > 2) {
 			TempSetpoint_Aussen = lastUserSetTemp;
 			TempSetpoint_Innen = lastUserSetTemp;
 		}
@@ -60,6 +60,7 @@ void checkMasterBefehl() {
 		zapfBool = 1;
 		break;
 	case END_ZAPF:
+		zapfBool = 0;
 		stromVerbrauchLetzteZapfung = 0;
 		wattSekunden = 0;
 		break;
@@ -70,11 +71,9 @@ void checkMasterBefehl() {
 		break;
 	case WACH_AUF:
 		sleepMode = 0;
-		wakeUp();
 		break;
 	case ZAPFEN_STREICH:
 		sleepMode = 1;
-		goSleep();
 
 
 		break;

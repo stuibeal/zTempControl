@@ -49,8 +49,6 @@ float Temp_Aussen, PIDOut_Aussen, TempSetpoint_Aussen;
 modbusHandler_t ModbusH0;
 modbusHandler_t ModbusH1;
 
-uint8_t sleepMode = 0;
-
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -78,11 +76,17 @@ uint16_t dpsOutputVoltage[2];
 uint16_t dpsOutputCurrent[2];
 uint16_t actualOutputPower; // W mit einer Kommastelle
 // MODBUS
-char buffer[128];
 uint16_t ModbusDataIn0[4];
 uint16_t ModbusDataIn1[4];
 //POWER
 uint64_t wattSekunden;
+uint8_t sleepMode = 0;
+uint8_t oldSleepMode = 0;
+//PUMPE
+uint8_t kraftPumpeIsOn = 0;
+uint8_t normalPumpeIsOn = 0;
+//DEBUG
+uint8_t debugBatterieStatus = 10; // kann man dann beim debuggen ändern. bei 10 tut sich nix.
 /* USER CODE END Variables */
 /* Definitions for defaultTask */
 osThreadId_t defaultTaskHandle;
@@ -109,6 +113,19 @@ const osThreadAttr_t checkTemp_attributes = { .name = "checkTemp", .stack_size =
 osThreadId_t dpsTalkHandle;
 const osThreadAttr_t dpsTalk_attributes = { .name = "dpsTalk", .stack_size = 128
 		* 4, .priority = (osPriority_t) osPriorityAboveNormal, };
+/* Definitions for sleepControlTas */
+osThreadId_t sleepControlTasHandle;
+const osThreadAttr_t sleepControlTas_attributes =
+		{ .name = "sleepControlTas", .stack_size = 128 * 4, .priority =
+				(osPriority_t) osPriorityBelowNormal, };
+/* Definitions for pumpenTask */
+osThreadId_t pumpenTaskHandle;
+const osThreadAttr_t pumpenTask_attributes = { .name = "pumpenTask",
+		.stack_size = 128 * 4, .priority = (osPriority_t) osPriorityLow, };
+/* Definitions for controlTempSetp */
+osThreadId_t controlTempSetpHandle;
+const osThreadAttr_t controlTempSetp_attributes = { .name = "controlTempSetp",
+		.stack_size = 128 * 4, .priority = (osPriority_t) osPriorityLow, };
 /* Definitions for flowRateTimer */
 osTimerId_t flowRateTimerHandle;
 const osTimerAttr_t flowRateTimer_attributes = { .name = "flowRateTimer" };
@@ -120,8 +137,6 @@ const osTimerAttr_t wattSekundenTimer_attributes =
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
 extern uint8_t CDC_Transmit_FS(uint8_t *Buf, uint16_t Len);
-void goSleep();
-void wakeUp();
 /* USER CODE END FunctionPrototypes */
 
 void StartDefaultTask(void *argument);
@@ -130,6 +145,9 @@ void StartPidTask(void *argument);
 void StartCheckPower(void *argument);
 void startCheckTemp(void *argument);
 void StartDpsTalk(void *argument);
+void StartSleepControl(void *argument);
+void StartPumpenTask(void *argument);
+void StartControlTempSet(void *argument);
 void flowRateCallback(void *argument);
 void wattSekundenCallback(void *argument);
 
@@ -166,7 +184,7 @@ void MX_FREERTOS_Init(void) {
 
 	/* creation of wattSekundenTimer */
 	wattSekundenTimerHandle = osTimerNew(wattSekundenCallback, osTimerPeriodic,
-	NULL, &wattSekundenTimer_attributes);
+			NULL, &wattSekundenTimer_attributes);
 
 	/* USER CODE BEGIN RTOS_TIMERS */
 	/* start timers, add new ones, ... */
@@ -198,6 +216,18 @@ void MX_FREERTOS_Init(void) {
 	/* creation of dpsTalk */
 	dpsTalkHandle = osThreadNew(StartDpsTalk, NULL, &dpsTalk_attributes);
 
+	/* creation of sleepControlTas */
+	sleepControlTasHandle = osThreadNew(StartSleepControl, NULL,
+			&sleepControlTas_attributes);
+
+	/* creation of pumpenTask */
+	pumpenTaskHandle = osThreadNew(StartPumpenTask, NULL,
+			&pumpenTask_attributes);
+
+	/* creation of controlTempSetp */
+	controlTempSetpHandle = osThreadNew(StartControlTempSet, NULL,
+			&controlTempSetp_attributes);
+
 	/* USER CODE BEGIN RTOS_THREADS */
 	/* add threads, ... */
 	/* USER CODE END RTOS_THREADS */
@@ -222,16 +252,10 @@ void StartDefaultTask(void *argument) {
 
 	osTimerStart(flowRateTimerHandle, 10000); //startet den FlowRate Timer
 	osTimerStart(wattSekundenTimerHandle, 500); //alle 0,5s die Wattzahl mitschreiben
-	HAL_GPIO_WritePin(PUMPE_KRAFT_GPIO_Port, PUMPE_KRAFT_Pin, 1); //Startet eine Pumpe
-	osDelay(5000);
-	HAL_GPIO_WritePin(PUMPE_NORMAL_GPIO_Port, PUMPE_NORMAL_Pin, 1); // Startet die andere Pumpe
 	/* Infinite loop */
 	for (;;) {
 		//Hier nur ein Lebenszeichen von sich geben
 		HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
-
-		//*Wenn Kühlleistung wenig -> Kraftpumpe aus
-
 		osDelay(1000);
 
 	}
@@ -289,6 +313,11 @@ void StartCheckInV(void *argument) {
 		if (eingangsSpannung > 140) {
 			batterieStatus = BATT_ULTRAHIGH;
 		}
+
+		if (debugBatterieStatus < 10) {
+			batterieStatus = debugBatterieStatus;
+		}
+		dpsSetVoltage(dpsInputVoltage[0] - 101); //muss 1V unter U_in sein
 		osDelay(5000);
 	}
 	/* USER CODE END StartCheckInV */
@@ -327,6 +356,7 @@ void StartPidTask(void *argument) {
 		PID_Compute(&TPID_Aussen);
 		PID_Compute(&TPID_Innen);
 		osDelay(250);
+
 	}
 	/* USER CODE END StartPidTask */
 }
@@ -341,57 +371,50 @@ void StartPidTask(void *argument) {
 void StartCheckPower(void *argument) {
 	/* USER CODE BEGIN StartCheckPower */
 	/*
-	 * Hier wird der Stromverbrauch ermittelt und gedingst!
+	 * je nach Eingangsspannung die maximale Outputpower festlegen
+	 * alle 10s reicht dick
 	 */
 	/* Infinite loop */
 	for (;;) {
-//		switch (batterieStatus) {
-//		case BATT_ULTRAHIGH:
-//			dpsOnOff(1);
-//			dpsSetBacklight(5);
-//			TempSetpoint_Aussen = 2.5;
-//			TempSetpoint_Innen = 1.5;
-//			PID_SetOutputLimits(&TPID_Aussen, AUSSEN_MIN_A, AUSSEN_MAX_A);
-//			PID_SetOutputLimits(&TPID_Innen, INNEN_MIN_A, INNEN_MAX_A);
-//			break;
-//		case BATT_HIGH:
-//			dpsOnOff(1);
-//			dpsSetBacklight(5);
-//			TempSetpoint_Aussen = lastUserSetTemp;
-//			TempSetpoint_Innen = lastUserSetTemp;
-//			PID_SetOutputLimits(&TPID_Aussen, AUSSEN_MIN_A, AUSSEN_MAX_A);
-//			PID_SetOutputLimits(&TPID_Innen, INNEN_MIN_A, INNEN_MAX_A);
-//			break;
-//		case BATT_NORMAL:
-//			dpsOnOff(1);
-//			dpsSetBacklight(5);
-//			TempSetpoint_Aussen = lastUserSetTemp;
-//			TempSetpoint_Innen = lastUserSetTemp;
-//			PID_SetOutputLimits(&TPID_Aussen, AUSSEN_MIN_A, 1000);
-//			PID_SetOutputLimits(&TPID_Innen, INNEN_MIN_A, 500);
-//			break;
-//		case BATT_LOW:
-//			dpsOnOff(1);
-//			dpsSetBacklight(1);
-//			TempSetpoint_Aussen = 14;
-//			TempSetpoint_Innen = 10;
-//			PID_SetOutputLimits(&TPID_Aussen, AUSSEN_MIN_A, 100);
-//			PID_SetOutputLimits(&TPID_Innen, INNEN_MIN_A, 100);
-//			break;
-//		case BATT_ULTRALOW:
-//			dpsSetBacklight(0);
-//			dpsOnOff(0);
-//			break;
-//		}
-//		//TODO: hier noch funktion für kühlwassercheck! wenn too hot!
-		osDelay(60000);
+		switch (batterieStatus) {
+		case BATT_ULTRAHIGH:
+			dpsOnOff(1);
+			dpsSetBacklight(5);
+			PID_SetOutputLimits(&TPID_Aussen, AUSSEN_MIN_A, 1800);
+			PID_SetOutputLimits(&TPID_Innen, INNEN_MIN_A, 1800);
+			break;
+		case BATT_HIGH:
+			dpsOnOff(1);
+			dpsSetBacklight(5);
+			PID_SetOutputLimits(&TPID_Aussen, AUSSEN_MIN_A, 1500);
+			PID_SetOutputLimits(&TPID_Innen, INNEN_MIN_A, 1200);
+			break;
+		case BATT_NORMAL:
+			dpsOnOff(1);
+			dpsSetBacklight(5);
+			PID_SetOutputLimits(&TPID_Aussen, AUSSEN_MIN_A, 1000);
+			PID_SetOutputLimits(&TPID_Innen, INNEN_MIN_A, 500);
+			break;
+		case BATT_LOW:
+			dpsOnOff(1);
+			dpsSetBacklight(1);
+			PID_SetOutputLimits(&TPID_Aussen, AUSSEN_MIN_A, 100);
+			PID_SetOutputLimits(&TPID_Innen, INNEN_MIN_A, 100);
+			break;
+		case BATT_ULTRALOW:
+			dpsSetBacklight(0);
+			dpsOnOff(0);
+			break;
+		}
+		osDelay(10000);
 
 	}
 	/* USER CODE END StartCheckPower */
 }
 
 /* USER CODE BEGIN Header_startCheckTemp */
-/**
+/**	uint8_t kraftPumpeIsOn = 1;
+ *
  * @brief Function implementing the checkTemp thread.
  * @param argument: Not used
  * @retval None
@@ -403,21 +426,21 @@ void startCheckTemp(void *argument) {
 	for (;;) {
 		float t;
 		pt100InnenIsOK = Max31865_readTempC(&pt100Innen, &t);
-		osDelay(320);
 		pt100InnenTemp = Max31865_Filter(t, pt100InnenTemp, 0.08); //  << For Smoothing data
 		blockInnenTemp = (int16_t) (pt100InnenTemp * 100);
-		osDelay(320);
+		osDelay(490);
 		pt100AussenIsOK = Max31865_readTempC(&pt100Aussen, &t);
-		osDelay(320);
 		pt100AussenTemp = Max31865_Filter(t, pt100AussenTemp, 0.08); //  << For Smoothing data
 		blockAussenTemp = (int16_t) (pt100AussenTemp * 100);
-		osDelay(320);
+		osDelay(490);
+
 	}
 	/* USER CODE END startCheckTemp */
 }
 
 /* USER CODE BEGIN Header_StartDpsTalk */
-/**
+/**	uint8_t kraftPumpeIsOn = 1;
+ *
  * @brief Function implementing the dpsTalk thread.
  * @param argument: Not used
  * @retval None
@@ -438,7 +461,7 @@ void StartDpsTalk(void *argument) {
 	getData[1].u8fct = MB_FC_READ_REGISTERS; // function code
 	getData[1].u16RegAdd = 0x02; // start address in slave
 	getData[1].u16CoilsNo = 4; // number of elements (coils or registers) to read
-	getData[1].u16reg = ModbusDataIn1; // pointer to a memory array in the Arduino
+	getData[1].u16reg = ModbusDataIn1; // pointer to a memory array in the Arduino	uint8_t kraftPumpeIsOn = 1;
 
 	/* Infinite loop */
 	for (;;) {
@@ -476,18 +499,199 @@ void StartDpsTalk(void *argument) {
 	/* USER CODE END StartDpsTalk */
 }
 
+/* USER CODE BEGIN Header_StartSleepControl */
+/**
+ * @brief Function implementing the sleepControlTas thread.
+ * @param argument: Not used
+ * @retval None
+ */
+/* USER CODE END Header_StartSleepControl */
+void StartSleepControl(void *argument) {
+	/* USER CODE BEGIN StartSleepControl */
+	/* Infinite loop */
+	for (;;) {
+		if (sleepMode && !oldSleepMode) {
+			oldSleepMode = sleepMode;
+			osTimerStop(wattSekundenTimerHandle);
+			osTimerStop(flowRateTimerHandle);
+			vTaskSuspend(defaultTaskHandle);
+			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, 1);
+			vTaskSuspend(checkInVoltageHandle);
+			vTaskSuspend(checkPowerHandle);
+			vTaskSuspend(checkTempHandle);
+			vTaskSuspend(pidTaskHandle);
+			vTaskSuspend(dpsTalkHandle);
+			dpsOnOff(0);
+			osDelay(100);
+			dpsSetLock(1);
+			osDelay(100);
+			dpsSetBacklight(5);
+			osDelay(100);
+			dpsSetVoltage(0);
+			osDelay(100);
+			dpsSetCurrent(0);
+			osDelay(500);
+			HAL_GPIO_WritePin(PUMPE_KRAFT_GPIO_Port, PUMPE_KRAFT_Pin, 0);
+			dpsSetBacklight(4);
+			osDelay(1000);
+			HAL_GPIO_WritePin(PUMPE_NORMAL_GPIO_Port, PUMPE_NORMAL_Pin, 0);
+			dpsSetBacklight(3);
+			osDelay(1000);
+			HAL_GPIO_WritePin(LUEFTERS_GPIO_Port, LUEFTERS_Pin, 0);
+			dpsSetBacklight(2);
+			osDelay(1000);
+			dpsSetBacklight(1);
+			osDelay(1000);
+			dpsSetBacklight(0);
+			osDelay(1000);
+			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, 0);
+			vTaskSuspendAll();
+		}
+
+		if (!sleepMode && oldSleepMode) {
+			oldSleepMode = sleepMode;
+			xTaskResumeAll();
+			dpsSetLock(1);
+			HAL_GPIO_WritePin(PUMPE_KRAFT_GPIO_Port, PUMPE_KRAFT_Pin, 1);
+			osDelay(1000);
+			HAL_GPIO_WritePin(PUMPE_NORMAL_GPIO_Port, PUMPE_NORMAL_Pin, 1);
+			osDelay(1000);
+			dpsSetBacklight(5);
+			osDelay(1000);
+			dpsSetCurrent(INNEN_MIN_A);
+			osDelay(1000);
+			dpsOnOff(1);
+		}
+		osDelay(500);
+	}
+	/* USER CODE END StartSleepControl */
+}
+
+/* USER CODE BEGIN Header_StartPumpenTask */
+/**
+ * @brief Function implementing the pumpenTask thread.
+ * 		 Hier wird gecheckt ob die große Pumpe gebraucht wird
+ *
+ * @param argument: Not used
+ * @retval None
+ */
+/* USER CODE END Header_StartPumpenTask */
+void StartPumpenTask(void *argument) {
+	/* USER CODE BEGIN StartPumpenTask */
+	HAL_GPIO_WritePin(PUMPE_KRAFT_GPIO_Port, PUMPE_KRAFT_Pin, 1); //Startet eine Pumpe
+	uint8_t kraftPumpeIsOn = 1;
+	osDelay(2000);
+	HAL_GPIO_WritePin(PUMPE_NORMAL_GPIO_Port, PUMPE_NORMAL_Pin, 1); // Startet die andere Pumpe
+	uint8_t normalPumpeIsOn = 1;
+	/* Infinite loop */
+	for (;;) {
+		osDelay(3859);
+		if (batterieStatus < BATT_ULTRALOW) {
+			if (stromVerbrauchAktuell > 4000 && !kraftPumpeIsOn) {
+				HAL_GPIO_WritePin(PUMPE_KRAFT_GPIO_Port, PUMPE_KRAFT_Pin, 1);
+				kraftPumpeIsOn = 1;
+			}
+			if (stromVerbrauchAktuell < 4000 && kraftPumpeIsOn) {
+				HAL_GPIO_WritePin(PUMPE_NORMAL_GPIO_Port, PUMPE_NORMAL_Pin, 1);
+				normalPumpeIsOn = 1;
+				osDelay(1000);
+				HAL_GPIO_WritePin(PUMPE_KRAFT_GPIO_Port, PUMPE_KRAFT_Pin, 0);
+				kraftPumpeIsOn = 0;
+
+			}
+			if (stromVerbrauchAktuell < 1 && kuehlWasserTemp < 3500) {
+				HAL_GPIO_WritePin(PUMPE_KRAFT_GPIO_Port, PUMPE_KRAFT_Pin, 0);
+				kraftPumpeIsOn = 0;
+				HAL_GPIO_WritePin(PUMPE_NORMAL_GPIO_Port, PUMPE_NORMAL_Pin, 0);
+				normalPumpeIsOn = 0;
+			}
+
+			if (stromVerbrauchAktuell > 0
+					&& (!kraftPumpeIsOn || !normalPumpeIsOn)) {
+				HAL_GPIO_WritePin(PUMPE_KRAFT_GPIO_Port, PUMPE_KRAFT_Pin, 1);
+				kraftPumpeIsOn = 1;
+				osDelay(2000); //delay weil die normale Pumpe das am Anfang nicht schafft
+				HAL_GPIO_WritePin(PUMPE_NORMAL_GPIO_Port, PUMPE_NORMAL_Pin, 1);
+				normalPumpeIsOn = 1;
+			}
+		} else {
+			/* no power, no PUmpe */
+			HAL_GPIO_WritePin(PUMPE_KRAFT_GPIO_Port, PUMPE_KRAFT_Pin, 0);
+			kraftPumpeIsOn = 0;
+			HAL_GPIO_WritePin(PUMPE_NORMAL_GPIO_Port, PUMPE_NORMAL_Pin, 0);
+			normalPumpeIsOn = 0;
+		}
+	}
+	/* USER CODE END StartPumpenTask */
+}
+
+/* USER CODE BEGIN Header_StartControlTempSet */
+/**
+ * @brief Function implementing the controlTempSetp thread.
+ * @param argument: Not used
+ * @retval None
+ */
+/* USER CODE END Header_StartControlTempSet */
+void StartControlTempSet(void *argument) {
+	/* USER CODE BEGIN StartControlTempSet */
+	TempSetpoint_Aussen = lastUserSetTemp;
+	TempSetpoint_Innen = lastUserSetTemp;
+	/* Infinite loop */
+	for (;;) {
+		switch (batterieStatus) {
+		case BATT_ULTRAHIGH:
+			/* kühl weg den Strom! Sonst geht die Batterie über!*/
+			TempSetpoint_Aussen = 2.5f;
+			TempSetpoint_Innen = 1.5f;
+			break;
+		case BATT_HIGH:
+			if (lastUserSetTemp > 3) {
+				TempSetpoint_Aussen = lastUserSetTemp;
+				TempSetpoint_Innen = lastUserSetTemp;
+			} else {
+				TempSetpoint_Aussen = 3.0f;
+				TempSetpoint_Innen = 4.0f;
+			}
+			break;
+		case BATT_NORMAL:
+			if (lastUserSetTemp > 4) {
+				TempSetpoint_Aussen = lastUserSetTemp;
+				TempSetpoint_Innen = lastUserSetTemp;
+			} else {
+				TempSetpoint_Aussen = 4.0f;
+				TempSetpoint_Innen = 4.0f;
+			}
+			break;
+		case BATT_LOW:
+			/* BEDA! NOCHSCHIERN! */
+			TempSetpoint_Aussen = 14.0f;
+			TempSetpoint_Innen = 12.0f;
+			break;
+		case BATT_ULTRALOW:
+			/* drink warm beer you fool!*/
+			TempSetpoint_Aussen = 20.0f;
+			TempSetpoint_Innen = 20.0f;
+			break;
+		}
+		osDelay(200);
+	}
+	/* USER CODE END StartControlTempSet */
+}
+
 /* flowRateCallback function */
 void flowRateCallback(void *argument) {
 	/* USER CODE BEGIN flowRateCallback */
 	/* nimmt alle 10s die vom Flowmeter gemessenen Daten und teilt sie durch zehn sekunden :) */
 	kuehlWasserFlowRate = (uint16_t) (flowCounter / 50); //wir nehmens einfach mal durch 50....
 	flowCounter = 0;
-	if (kuehlWasserFlowRate == 0) {
+	if (kuehlWasserFlowRate == 0 && stromVerbrauchAktuell > 0) {
 		HAL_GPIO_WritePin(LUEFTERS_GPIO_Port, LUEFTERS_Pin, 1);
 	} else {
 		HAL_GPIO_WritePin(LUEFTERS_GPIO_Port, LUEFTERS_Pin, 0);
 	}
-
+	if (kuehlWasserTemp > 3500) {
+		HAL_GPIO_WritePin(LUEFTERS_GPIO_Port, LUEFTERS_Pin, 1);
+	}
 	/* USER CODE END flowRateCallback */
 }
 
@@ -506,51 +710,6 @@ void wattSekundenCallback(void *argument) {
 
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
-void goSleep() {
-	osTimerStop(wattSekundenTimerHandle);
-	osTimerStop(flowRateTimerHandle);
-	vTaskSuspend(defaultTaskHandle);
-	HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, 1);
-	vTaskSuspend(checkInVoltageHandle);
-	vTaskSuspend(checkPowerHandle);
-	vTaskSuspend(checkTempHandle);
-	vTaskSuspend(pidTaskHandle);
-	vTaskSuspend(dpsTalkHandle);
-	dpsOnOff(0);
-	dpsSetLock(0);
-	dpsSetBacklight(5);
-	dpsSetVoltage(0);
-	dpsSetCurrent(0);
-	HAL_Delay(1000);
-	HAL_GPIO_WritePin(PUMPE_KRAFT_GPIO_Port, PUMPE_KRAFT_Pin, 0);
-	dpsSetBacklight(4);
-	HAL_Delay(1000);
-	HAL_GPIO_WritePin(PUMPE_NORMAL_GPIO_Port, PUMPE_NORMAL_Pin, 0);
-	dpsSetBacklight(3);
-	HAL_Delay(1000);
-	HAL_GPIO_WritePin(LUEFTERS_GPIO_Port, LUEFTERS_Pin, 0);
-	dpsSetBacklight(2);
-	HAL_Delay(1000);
-	dpsSetBacklight(1);
-	HAL_Delay(1000);
-	dpsSetBacklight(0);
-	HAL_Delay(1000);
-	HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, 0);
-	vTaskSuspendAll();
-
-}
-
-void wakeUp() {
-	xTaskResumeAll();
-	dpsSetLock(0);
-	HAL_GPIO_WritePin(PUMPE_KRAFT_GPIO_Port, PUMPE_KRAFT_Pin, 1);
-	HAL_Delay(1000);
-	HAL_GPIO_WritePin(PUMPE_NORMAL_GPIO_Port, PUMPE_NORMAL_Pin, 1);
-	HAL_Delay(1000);
-	dpsSetBacklight(5);
-	dpsSetCurrent(INNEN_MIN_A);
-	dpsOnOff(1);
-}
 
 /* USER CODE END Application */
 

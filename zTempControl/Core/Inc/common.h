@@ -55,13 +55,13 @@ extern int16_t zulaufTemp;
 extern int16_t kuehlWasserTemp;
 extern uint16_t befehlDaten;
 // Zum Master
-extern int16_t blockAussenTemp;
-extern int16_t blockInnenTemp;
-extern uint8_t batterieStatus;
-extern uint8_t eingangsSpannung;
-extern uint16_t stromVerbrauchAktuell;
-extern uint16_t stromVerbrauchLetzteZapfung;
-extern uint16_t kuehlWasserFlowRate;
+extern int16_t blockAussenTemp;  //2 Kommastellen
+extern int16_t blockInnenTemp;	//2 kommastellen
+extern uint8_t batterieStatus;    //0 megahigh, 4 megalow
+extern uint8_t eingangsSpannung;   // 1 Kommastelle
+extern uint16_t stromVerbrauchAktuell; // 2 Kommastellen
+extern uint16_t stromVerbrauchLetzteZapfung; // in Wh, 1 Kommastelle
+extern uint16_t kuehlWasserFlowRate; //something
 
 // PT100 Temperatursensoren
 extern float pt100AussenTemp;
