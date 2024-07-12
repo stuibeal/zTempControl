@@ -476,9 +476,12 @@ void StartDpsTalk(void *argument)
 {
   /* USER CODE BEGIN StartDpsTalk */
 	dpsSetCurrent(INNEN_MIN_A);
-	osDelay(150);
+	osDelay(1000);
 	dpsSetLock(1);
-	osDelay(150);
+	osDelay(1000);
+	dpsSetLock(1);
+	osDelay(1000);
+
 	uint32_t u32NotificationValue;
 	getData[0].u8id = 1; // slave address
 	getData[0].u8fct = MB_FC_READ_REGISTERS; // function code
