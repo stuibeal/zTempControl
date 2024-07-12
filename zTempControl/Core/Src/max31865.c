@@ -170,7 +170,7 @@ void  Max31865_init(Max31865_t *max31865,SPI_HandleTypeDef *spi,GPIO_TypeDef  *c
   max31865->cs_pin = cs_pin; 
   HAL_GPIO_WritePin(max31865->cs_gpio,max31865->cs_pin,GPIO_PIN_SET);
   Max31865_delay(100);
-  HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
+  //HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
   Max31865_setWires(max31865, numwires);
 	Max31865_enableBias(max31865, 0);
 	Max31865_autoConvert(max31865, 0);
