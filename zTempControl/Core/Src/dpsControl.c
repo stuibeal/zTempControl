@@ -12,11 +12,11 @@
 #include "Modbus.h"
 #include "usart.h"
 
-modbus_t telegram[2];
-modbusHandler_t ModbusH0;
-uint16_t ModbusDATA0[16];
-modbusHandler_t ModbusH1;
-uint16_t ModbusDATA1[16];
+modbus_t telegram[3];
+extern modbusHandler_t ModbusH0;
+uint16_t ModbusDATA0[8];
+extern modbusHandler_t ModbusH1;
+uint16_t ModbusDATA1[8];
 
 void startDPS(void) {
 	/* MODBUS RTU Master 1 initialization */
@@ -50,27 +50,9 @@ void startDPS(void) {
 	ModbusInit(&ModbusH1);
 	//Start capturing traffic on serial Port
 	ModbusStart(&ModbusH1);
+
 }
 
-uint16_t getEingangsSpannung(void) {
-	return dps0getSingleRegister(RD_UIN);
-}
-
-uint16_t getWatt(void) {
-	uint16_t watt = 0;
-	/* wir lesen lieber uout und iout anstatt watt */
-	uint16_t uOut=  0;
-	uint16_t iOut = 0;
-	uOut = dps0getSingleRegister(RD_UOUT);
-	iOut= dps0getSingleRegister(RD_IOUT);
-	/* maximal kann das Ding 15V (*100) und 20A (*100) = 3 000 000 *2 /100= 6 000 0 -> geht in uint16_t */
-	uint32_t power = iOut*uOut/100; //zb 1200 * 1500 / 100 = 18000 = 180,00W
-	uOut = dps1getSingleRegister(RD_UOUT);
-	iOut= dps1getSingleRegister(RD_IOUT);
-	power += iOut*uOut/100; //w *100
-	watt = (uint16_t)power;
-	return watt;
-}
 
 /**
  * @brief Sperrt das Userinterface der beiden DPS
@@ -87,19 +69,8 @@ void dpsOnOff(uint16_t onoff) {
 	dpsSetSingleRegister(RD_ONOFF, onoff);
 
 }
-uint16_t getAusgangsSpannung(void) {
-	uint16_t spannung = 0;
-	spannung += dps0getSingleRegister(RD_UOUT);
-	spannung += dps1getSingleRegister(RD_UOUT);
-	return (spannung/2);
-}
-uint16_t getAusgangsStrom(void) {
-	uint16_t strom = 0;
-	strom += dps0getSingleRegister(RD_IOUT);
-	strom += dps1getSingleRegister(RD_IOUT);
-	return (strom/2);
 
-}
+
 void dpsSetCurrent(uint16_t ampere) {
 	dpsSetSingleRegister(RD_I_SET, ampere);
 
@@ -136,6 +107,7 @@ void dpsSetSingleRegister(uint8_t dpsRegister, uint16_t dpsData) {
 	}
 
 }
+
 
 uint16_t dps0getSingleRegister(uint8_t dpsRegister) {
 	uint32_t u32NotificationValue;

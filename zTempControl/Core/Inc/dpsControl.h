@@ -54,13 +54,9 @@
  */
 
 void startDPS(void);
-uint16_t getEingangsSpannung(void);
-uint16_t getWatt(void);
 void dpsSetLock(uint16_t yesno);
 void dpsSetBacklight(uint16_t backlightvalue);
 void dpsOnOff(uint16_t onoff);
-uint16_t getAusgangsSpannung(void);
-uint16_t getAusgangsStrom(void);
 void dpsSetCurrent(uint16_t ampere);
 void dpsSetVoltage(uint16_t volt);
 void dpsSetSingleRegister(uint8_t dpsRegister, uint16_t dpsData);
