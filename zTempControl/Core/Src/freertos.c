@@ -548,7 +548,7 @@ void StartSleepControl(void *argument)
 			osTimerStop(wattSekundenTimerHandle);
 			osTimerStop(flowRateTimerHandle);
 			vTaskSuspend(defaultTaskHandle);
-			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, 1);
+			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, 0);
 			vTaskSuspend(checkInVoltageHandle);
 			vTaskSuspend(checkPowerHandle);
 			vTaskSuspend(checkTempHandle);
@@ -579,7 +579,7 @@ void StartSleepControl(void *argument)
 			osDelay(1000);
 			dpsSetBacklight(0);
 			osDelay(1000);
-			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, 0);
+			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, 1); //invertiert, daher 1
 		}
 
 		if (!sleepMode && oldSleepMode) {
