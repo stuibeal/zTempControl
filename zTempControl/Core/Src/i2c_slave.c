@@ -145,7 +145,7 @@ void HAL_I2C_SlaveRxCpltCallback(I2C_HandleTypeDef *I2cHandle) {
 	/* kucken bis er wirklich in Slave Mode is */
 	while (HAL_I2C_GetMode(I2cHandle) != HAL_I2C_MODE_SLAVE) {
 	}
-	HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
+	//HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
 //Nach Empfang die Bufferdaten in die Variablen schieben
 	i2cTxDataConvert();
 }
